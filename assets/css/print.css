@@ -1,0 +1,16 @@
+@media print {
+    .sidebar, .topbar, .no-print, .table-toolbar, .pagination { display: none !important; }
+    .main-area { margin-left: 0 !important; width: 100% !important; }
+    .content { padding: 0 !important; }
+    body { background: #fff !important; }
+    .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+    a { color: #000 !important; text-decoration: none !important; }
+}
+.print-only { display: none; }
+@media print { .print-only { display: block; } }
+.voucher-print { max-width: 720px; margin: 0 auto; font-family: var(--font-family); }
+.voucher-print .vp-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1F2937; padding-bottom: 12px; margin-bottom: 16px; }
+.voucher-print table { width: 100%; border-collapse: collapse; }
+.voucher-print th, .voucher-print td { border: 1px solid #999; padding: 8px; font-size: 13px; }
+.voucher-print .vp-signatures { display: flex; justify-content: space-between; margin-top: 60px; }
+.voucher-print .vp-signatures div { text-align: center; width: 45%; border-top: 1px solid #333; padding-top: 6px; font-size: 12.5px; }

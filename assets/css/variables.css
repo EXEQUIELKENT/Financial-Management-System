@@ -1,0 +1,76 @@
+:root {
+    --color-primary: #2F80ED;
+    --color-secondary: #56CCF2;
+    --color-accent: #27AE60;
+    --color-bg: #F8FAFC;
+    --color-card: #FFFFFF;
+    --color-text: #1F2937;
+    --color-text-secondary: #6B7280;
+    --color-border: #EEF2F7;
+
+    --color-danger: #EB5757;
+    --color-warning: #F2994A;
+    --color-info: #2F80ED;
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+
+    --shadow-sm: 0 1px 2px rgba(31, 41, 55, 0.06);
+    --shadow-md: 0 4px 12px rgba(31, 41, 55, 0.08);
+    --shadow-lg: 0 8px 24px rgba(31, 41, 55, 0.12);
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+
+    --font-family: 'Poppins', sans-serif;
+    --sidebar-width: 260px;
+    --sidebar-width-collapsed: 72px;
+    --topbar-height: 64px;
+
+    /* Alert severity tints: pale in light mode, dark-desaturated in dark mode (see below) */
+    --alert-text: #1F2937;
+    --alert-link: #1c5fc4;
+    --alert-info-bg: #EBF3FF;
+    --alert-warning-bg: #FFF4E5;
+    --alert-critical-bg: #FDEAEA;
+    --alert-success-bg: #E6F6EC;
+}
+
+/* Dark mode: applied automatically by OS/browser preference (prefers-color-scheme),
+   unless the user has explicitly picked a theme via the topbar toggle, in which case
+   the [data-theme] attribute on <html> (set by assets/js/main.js) takes priority. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --color-bg: #0F172A;
+        --color-card: #1E293B;
+        --color-text: #F1F5F9;
+        --color-text-secondary: #94A3B8;
+        --color-border: #2A3B52;
+
+        --alert-text: #F1F5F9;
+        --alert-link: #8AB4F8;
+        --alert-info-bg: rgba(47,128,237,0.18);
+        --alert-warning-bg: rgba(242,153,74,0.18);
+        --alert-critical-bg: rgba(235,87,87,0.20);
+        --alert-success-bg: rgba(39,174,96,0.18);
+    }
+}
+:root[data-theme="dark"] {
+    --color-bg: #0F172A;
+    --color-card: #1E293B;
+    --color-text: #F1F5F9;
+    --color-text-secondary: #94A3B8;
+    --color-border: #2A3B52;
+
+    --alert-text: #F1F5F9;
+    --alert-link: #8AB4F8;
+    --alert-info-bg: rgba(47,128,237,0.18);
+    --alert-warning-bg: rgba(242,153,74,0.18);
+    --alert-critical-bg: rgba(235,87,87,0.20);
+    --alert-success-bg: rgba(39,174,96,0.18);
+}
