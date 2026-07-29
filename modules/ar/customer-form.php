@@ -45,6 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = $id ? 'Edit Customer' : 'New Customer';
+$pageHelp = [
+    ['selector' => 'input[name="customer_code"]',
+        'en' => ['title' => 'Customer Code', 'body' => 'Leave blank to auto-generate one (e.g. C0001).'],
+        'tl' => ['title' => 'Customer Code', 'body' => 'Iwanang blangko para awtomatikong makabuo ng isa (hal. C0001).']],
+    ['selector' => 'input[name="credit_terms_days"]',
+        'en' => ['title' => 'Credit Terms (days)', 'body' => 'Used to auto-suggest a Due Date when you later create an Invoice for this customer.'],
+        'tl' => ['title' => 'Credit Terms (days)', 'body' => 'Ginagamit para awtomatikong magmungkahi ng Due Date paggawa mo ng Invoice para sa customer na ito.']],
+    ['selector' => 'select[name="status"]',
+        'en' => ['title' => 'Status', 'body' => 'Inactive customers no longer appear in the picker on new Invoices, but past history is kept.'],
+        'tl' => ['title' => 'Status', 'body' => 'Hindi na lalabas ang mga Inactive na customer sa picker ng bagong Invoices, pero mananatili ang kanilang history.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:640px;">

@@ -31,6 +31,17 @@ if (isset($_GET['export'])) {
 }
 
 $pageTitle = 'AR Aging Report';
+$pageHelp = [
+    ['selector' => 'input[name="as_of"]',
+        'en' => ['title' => 'As Of date', 'body' => 'Recalculates every bucket as if today were this date.'],
+        'tl' => ['title' => 'As Of Date', 'body' => 'Kinakalkula ulit ang bawat bucket na parang ngayon ang petsang ito.']],
+    ['selector' => '.kpi-grid',
+        'en' => ['title' => 'Bucket cards', 'body' => 'Current, 1-30, 31-60, 61-90, and 90+ days past due — how much of your total receivables falls into each.'],
+        'tl' => ['title' => 'Mga Bucket Card', 'body' => 'Current, 1-30, 31-60, 61-90, at 90+ araw na overdue — magkano sa iyong total receivables ang napupunta sa bawat isa.']],
+    ['selector' => 'a[href*="export=1"]',
+        'en' => ['title' => 'Export CSV', 'body' => 'Downloads the customer-by-customer breakdown shown below.'],
+        'tl' => ['title' => 'Export CSV', 'body' => 'Ida-download ang breakdown kada-customer na nasa ibaba.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

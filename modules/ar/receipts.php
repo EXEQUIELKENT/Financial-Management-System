@@ -8,6 +8,15 @@ $receipts = $db->query("SELECT r.*, c.name AS customer_name, ca.account_name AS 
                          ORDER BY r.receipt_date DESC, r.id DESC LIMIT 200")->fetchAll();
 
 $pageTitle = 'Accounts Receivable - Receipts';
+$pageHelp = [];
+if (has_permission('ar.create')) {
+    $pageHelp[] = ['selector' => 'a[href="receipt-form.php"]',
+        'en' => ['title' => '+ New Receipt', 'body' => 'Record a payment from a customer, applied against one or more of their open invoices, deposited into a chosen cash/bank account.'],
+        'tl' => ['title' => '+ Bagong Receipt', 'body' => 'Itala ang bayad mula sa customer, apply laban sa isa o higit pa nilang open na invoice, ideposito sa piniling cash/bank account.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'The table', 'body' => 'Every receipt ever recorded, with the customer, method, cash account used, and amount.'],
+    'tl' => ['title' => 'Ang Talahanayan', 'body' => 'Bawat receipt na naitala, kasama ang customer, method, cash account na ginamit, at halaga.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

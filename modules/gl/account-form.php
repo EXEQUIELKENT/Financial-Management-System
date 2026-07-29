@@ -48,6 +48,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $parents = $db->query("SELECT id, account_code, account_name FROM coa_accounts ORDER BY account_code")->fetchAll();
 
 $pageTitle = $id ? 'Edit Account' : 'New Account';
+$pageHelp = [
+    ['selector' => '#account_type',
+        'en' => ['title' => 'Account Type', 'body' => 'Changing this auto-suggests the correct Normal Balance (Asset/Expense = Debit, Liability/Equity/Revenue = Credit).'],
+        'tl' => ['title' => 'Uri ng Account', 'body' => 'Kapag binago ito, ipapanukala ang tamang Normal Balance (Asset/Expense = Debit, Liability/Equity/Revenue = Credit).']],
+    ['selector' => '#normal_balance',
+        'en' => ['title' => 'Normal Balance', 'body' => 'Which side (Debit or Credit) makes this account\'s balance go up — this drives every balance calculation in the system.'],
+        'tl' => ['title' => 'Normal Balance', 'body' => 'Kung aling side (Debit o Credit) ang nagpapataas ng balance ng account na ito — ito ang basehan ng bawat balance calculation sa sistema.']],
+    ['selector' => 'select[name="parent_id"]',
+        'en' => ['title' => 'Parent Account', 'body' => 'Optional — nests this account under another for a hierarchical Chart of Accounts.'],
+        'tl' => ['title' => 'Parent Account', 'body' => 'Opsyonal — inilalagay ang account na ito sa ilalim ng iba para sa hierarchical na Chart of Accounts.']],
+    ['selector' => 'input[name="is_active"]',
+        'en' => ['title' => 'Active checkbox', 'body' => 'Unchecking this hides the account from new transactions without deleting its history.'],
+        'tl' => ['title' => 'Active Checkbox', 'body' => 'Kapag hindi ito naka-check, itinatago ang account mula sa mga bagong transaksyon nang hindi binubura ang history nito.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:640px;">

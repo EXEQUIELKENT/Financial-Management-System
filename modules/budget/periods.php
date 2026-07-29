@@ -6,6 +6,15 @@ $db = get_db();
 $periods = $db->query("SELECT * FROM budget_periods ORDER BY start_date DESC")->fetchAll();
 
 $pageTitle = 'Budget Periods';
+$pageHelp = [];
+if (has_permission('budget.create')) {
+    $pageHelp[] = ['selector' => 'a[href="period-form.php"]',
+        'en' => ['title' => '+ New Period', 'body' => 'Defines a fiscal period (e.g. "FY2026") that budgets are created inside of.'],
+        'tl' => ['title' => '+ Bagong Period', 'body' => 'Nagtatakda ng fiscal period (hal. "FY2026") na kinaroroonan ng mga budget.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Status', 'body' => 'Open periods can still have budgets created/edited against them.'],
+    'tl' => ['title' => 'Status', 'body' => 'Puwede pa ring gumawa/mag-edit ng budget sa mga Open na period.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

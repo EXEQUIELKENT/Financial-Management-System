@@ -15,6 +15,19 @@ $transactions = $stmt->fetchAll();
 $accounts = $db->query("SELECT id, account_name FROM cash_accounts ORDER BY account_name")->fetchAll();
 
 $pageTitle = 'Cash Transactions';
+$pageHelp = [
+    ['selector' => 'select[name="cash_account_id"]',
+        'en' => ['title' => 'Account filter', 'body' => 'Shows every account\'s transactions, or narrow to just one.'],
+        'tl' => ['title' => 'Account filter', 'body' => 'Ipinapakita ang transaksyon ng lahat ng account, o i-narrow sa isa lang.']],
+];
+if (has_permission('cash.create')) {
+    $pageHelp[] = ['selector' => 'a[href="transaction-form.php"]',
+        'en' => ['title' => '+ New Transaction', 'body' => 'Record a manual deposit or withdrawal not tied to AP/AR — e.g. a bank charge or interest earned.'],
+        'tl' => ['title' => '+ Bagong Transaksyon', 'body' => 'Mag-record ng manual na deposit o withdrawal na hindi kaugnay ng AP/AR — hal. singil ng bangko o kinitang interes.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Category column', 'body' => 'Operating, Investing, or Financing — how this line is classified on the Cash Flow Statement.'],
+    'tl' => ['title' => 'Category column', 'body' => 'Operating, Investing, o Financing — kung paano naka-classify ang linyang ito sa Cash Flow Statement.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

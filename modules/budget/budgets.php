@@ -9,6 +9,15 @@ $budgets = $db->query("SELECT b.*, bp.name AS period_name, d.name AS department_
                         JOIN users u ON u.id = b.created_by ORDER BY b.id DESC")->fetchAll();
 
 $pageTitle = 'Budgets';
+$pageHelp = [];
+if (has_permission('budget.create')) {
+    $pageHelp[] = ['selector' => 'a[href="budget-form.php"]',
+        'en' => ['title' => '+ New Budget', 'body' => 'Starts a new budget inside an Open period, optionally scoped to a department.'],
+        'tl' => ['title' => '+ Bagong Budget', 'body' => 'Magsisimula ng bagong budget sa loob ng Open na period, opsyonal na naka-scope sa isang department.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Open', 'body' => 'Opens the budget to add account lines, enter monthly amounts, or Approve it.'],
+    'tl' => ['title' => 'Open', 'body' => 'Binubuksan ang budget para magdagdag ng account lines, maglagay ng buwanang halaga, o i-Approve ito.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

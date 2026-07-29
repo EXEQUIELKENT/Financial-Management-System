@@ -29,6 +29,19 @@ $stmt->execute($params);
 $accounts = $stmt->fetchAll();
 
 $pageTitle = 'Chart of Accounts';
+$pageHelp = [
+    ['selector' => 'select[name="type"]',
+        'en' => ['title' => 'Type filter', 'body' => 'Shows only accounts of one type: Asset, Liability, Equity, Revenue, or Expense.'],
+        'tl' => ['title' => 'Type Filter', 'body' => 'Ipinapakita lamang ang mga account ng isang uri: Asset, Liability, Equity, Revenue, o Expense.']],
+];
+if (has_permission('gl.create')) {
+    $pageHelp[] = ['selector' => 'a[href="account-form.php"]',
+        'en' => ['title' => '+ New Account', 'body' => 'Adds a new GL account with a code, name, type, normal balance (Debit/Credit), and an optional parent for hierarchy.'],
+        'tl' => ['title' => '+ Bagong Account', 'body' => 'Magdagdag ng bagong GL account na may code, pangalan, uri, normal balance (Debit/Credit), at opsyonal na parent para sa hierarchy.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'The table', 'body' => 'Ledger opens that account\'s full transaction history. Accounts are never deleted (it would break historical GL entries) — Deactivate just hides it from new transactions while keeping history intact.'],
+    'tl' => ['title' => 'Ang Talahanayan', 'body' => 'Binubuksan ng Ledger ang buong transaction history ng account na iyon. Hindi kailanman binubura ang mga account (masisira ang lumang GL entries) — ang Deactivate lang ang magtatago nito sa mga bagong transaksyon habang buo pa rin ang history.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

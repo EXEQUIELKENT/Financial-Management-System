@@ -21,12 +21,26 @@ $totalOutstanding = 0;
 foreach ($invoices as $i) { if ($i['status'] !== 'Void') $totalOutstanding += ($i['total_amount'] - $i['amount_received']); }
 
 $pageTitle = 'Customer: ' . $customer['name'];
+$pageHelp = [
+    ['selector' => '.form-row',
+        'en' => ['title' => 'Outstanding Balance', 'body' => 'Total of every unpaid/partially-paid invoice for this customer, live.'],
+        'tl' => ['title' => 'Outstanding Balance', 'body' => 'Kabuuan ng bawat unpaid/partially-paid na invoice ng customer na ito, live.']],
+    ['selector' => 'table.data-table', 'nth' => 0,
+        'en' => ['title' => 'Invoices table', 'body' => 'Every invoice ever billed to this customer, with balance and status; click an Invoice No. to open it.'],
+        'tl' => ['title' => 'Talahanayan ng Invoices', 'body' => 'Bawat invoice na na-bill sa customer na ito, kasama ang balance at status; i-click ang Invoice No. para buksan.']],
+    ['selector' => 'table.data-table', 'nth' => 1,
+        'en' => ['title' => 'Receipts table', 'body' => 'Every payment received from this customer.'],
+        'tl' => ['title' => 'Talahanayan ng Receipts', 'body' => 'Bawat payment na natanggap mula sa customer na ito.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">
     <div class="card-header">
         <h3><?= e($customer['name']) ?> <span class="text-muted">(<?= e($customer['customer_code']) ?>)</span></h3>
-        <a href="customer-form.php?id=<?= $id ?>" class="btn btn-outline">Edit</a>
+        <div>
+            <a href="customers.php" class="btn btn-outline">Back</a>
+            <a href="customer-form.php?id=<?= $id ?>" class="btn btn-outline">Edit</a>
+        </div>
     </div>
     <div class="form-row">
         <div><span class="text-muted">Contact</span><br><?= e($customer['contact_person'] ?: '—') ?></div>
@@ -79,5 +93,4 @@ include __DIR__ . '/../../includes/header.php';
     </table>
     </div>
 </div>
-<a href="customers.php" class="btn btn-outline">Back to Customers</a>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

@@ -72,6 +72,20 @@ if ($selectedCustomer) {
 }
 
 $pageTitle = 'New Collection Receipt';
+$pageHelp = [
+    ['selector' => '#payerType',
+        'en' => ['title' => 'Payer Type', 'body' => 'Customer shows a customer picker and lets you apply against their open invoices below; Other skips straight to ad hoc lines.'],
+        'tl' => ['title' => 'Payer Type', 'body' => 'Ipinapakita ng Customer ang customer picker at puwede mong i-apply laban sa kanilang open invoices sa ibaba; ang Other ay dumideretso sa ad hoc lines.']],
+    ['selector' => '.table-wrap', 'nth' => 0,
+        'en' => ['title' => 'Apply Against Open Invoices', 'body' => 'Optional — check off a customer\'s open invoices and how much to apply toward each.'],
+        'tl' => ['title' => 'Apply Against Open Invoices', 'body' => 'Opsyonal — i-check ang mga open invoice ng customer at magkano ang ilalapat sa bawat isa.']],
+    ['selector' => '.table-wrap', 'nth' => 1,
+        'en' => ['title' => 'Ad Hoc Collection Lines', 'body' => 'For miscellaneous income not tied to an existing AR invoice — pick an account, description, and amount.'],
+        'tl' => ['title' => 'Ad Hoc Collection Lines', 'body' => 'Para sa miscellaneous income na hindi kabit sa umiiral na AR invoice — pumili ng account, description, at halaga.']],
+    ['selector' => 'button[type="submit"]',
+        'en' => ['title' => 'Submit for Approval', 'body' => 'Sends the receipt straight to Pending Approval — there is no separate Draft stage to save first.'],
+        'tl' => ['title' => 'Isumite para sa Approval', 'body' => 'Direktang ipapadala ang receipt sa Pending Approval — walang hiwalay na Draft stage bago ito.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

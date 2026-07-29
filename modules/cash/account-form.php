@@ -49,6 +49,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $glAccounts = $db->query("SELECT id, account_code, account_name FROM coa_accounts WHERE is_active=1 AND account_type='Asset' ORDER BY account_code")->fetchAll();
 
 $pageTitle = $id ? 'Edit Cash Account' : 'New Cash Account';
+$pageHelp = [
+    ['selector' => 'select[name="gl_account_id"]',
+        'en' => ['title' => 'Linked GL Account', 'body' => 'Required — every deposit/withdrawal against this cash account posts to this Chart of Accounts asset account behind the scenes.'],
+        'tl' => ['title' => 'Naka-link na GL Account', 'body' => 'Kailangan — bawat deposit/withdrawal sa cash account na ito ay nagpo-post sa asset account na ito sa Chart of Accounts.']],
+];
+if (!$id) {
+    $pageHelp[] = ['selector' => 'input[name="opening_balance"]',
+        'en' => ['title' => 'Opening Balance', 'body' => 'Only settable when first creating the account — becomes its starting current balance.'],
+        'tl' => ['title' => 'Opening Balance', 'body' => 'Nasesetan lamang kapag unang ginawa ang account — ito ang magiging panimulang current balance nito.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:640px;">

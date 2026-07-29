@@ -35,6 +35,25 @@ $recommendations = get_recommendations();
 $intents = assistant_intents();
 
 $pageTitle = 'Dashboard';
+$pageHelp = [
+    ['selector' => '.kpi-grid',
+        'en' => ['title' => 'KPI cards', 'body' => 'Cash Position, Accounts Receivable, Accounts Payable, and Budget Utilization — all live totals, click through to the underlying report.'],
+        'tl' => ['title' => 'KPI cards', 'body' => 'Cash Position, Accounts Receivable, Accounts Payable, at Budget Utilization — lahat live totals, i-click para makita ang detalyadong report.']],
+    ['selector' => '.card.fade-in-up', 'nth' => 0,
+        'en' => ['title' => 'Decision Support', 'body' => 'Automatic alert cards that appear only when a threshold is crossed (low cash runway, aging risk, budget overrun, etc.) — configurable under Settings.'],
+        'tl' => ['title' => 'Decision Support', 'body' => 'Awtomatikong lalabas ang mga alert card kapag may nalagpasang threshold (mababang cash runway, aging risk, budget overrun, atbp) — naka-configure sa ilalim ng Settings.']],
+    ['selector' => '#forecastChart',
+        'en' => ['title' => 'Predictive Analysis chart', 'body' => 'A 3-month moving average plus a linear-regression trend line projecting the next 3 months of cash flow from actual history.'],
+        'tl' => ['title' => 'Predictive Analysis chart', 'body' => 'Isang 3-buwang moving average kasama ang linear-regression trend line na nagpo-project ng susunod na 3 buwan ng cash flow batay sa aktwal na kasaysayan.']],
+];
+if (has_permission('assistant.view')) {
+    $pageHelp[] = ['selector' => '.assistant-chip', 'nth' => 0,
+        'en' => ['title' => 'AI Financial Assistant', 'body' => 'Click a suggested question (or type your own close to one) for a real, computed answer from the current data — not a general chatbot.'],
+        'tl' => ['title' => 'AI Financial Assistant', 'body' => 'I-click ang isang suggested na tanong (o mag-type ng sarili mong tanong na malapit dito) para sa tunay, kinalkulang sagot mula sa kasalukuyang data — hindi ito isang pangkalahatang chatbot.']];
+}
+$pageHelp[] = ['selector' => 'a[href$="modules/help/index.php"]',
+    'en' => ['title' => 'New here?', 'body' => 'Click "Getting Started" in the sidebar for a full guided tour of the whole system, with optional English/Tagalog voice-over.'],
+    'tl' => ['title' => 'Bago ka lang ba?', 'body' => 'I-click ang "Getting Started" sa sidebar para sa isang buong guided tour ng buong sistema, na may opsyonal na English/Tagalog voice-over.']];
 $extraScripts = ['https://cdn.jsdelivr.net/npm/chart.js', BASE_URL . '/assets/js/dashboard.js', BASE_URL . '/assets/js/assistant.js'];
 include __DIR__ . '/../../includes/header.php';
 ?>

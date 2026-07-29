@@ -13,6 +13,22 @@ $stmt->execute($params);
 $receipts = $stmt->fetchAll();
 
 $pageTitle = 'Collection Receipts';
+$pageHelp = [
+    ['selector' => 'select[name="status"]',
+        'en' => ['title' => 'Status filter', 'body' => 'Narrows the list to Draft, PendingApproval, Approved, Deposited, Rejected, or Void receipts.'],
+        'tl' => ['title' => 'Status Filter', 'body' => 'Ipinapakita lamang ang mga receipt na may piniling status: Draft, PendingApproval, Approved, Deposited, Rejected, o Void.']],
+    ['selector' => 'a[href="approval-queue.php"]',
+        'en' => ['title' => 'Approval Queue', 'body' => 'Jumps to just the receipts currently waiting on an Approver.'],
+        'tl' => ['title' => 'Approval Queue', 'body' => 'Dumiretso sa mga receipt na naghihintay pa sa Approver.']],
+];
+if (has_permission('collection.create')) {
+    $pageHelp[] = ['selector' => 'a[href="receipt-form.php"]',
+        'en' => ['title' => '+ New Collection Receipt', 'body' => 'Record money collected (customer payment or misc. income) — goes straight to Pending Approval.'],
+        'tl' => ['title' => '+ Bagong Collection Receipt', 'body' => 'Itala ang perang nakolekta (bayad ng customer o miscellaneous income) — direktang mapupunta sa Pending Approval.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'View', 'body' => 'Opens the receipt\'s approval history, and — once Approved — the Mark Deposited action.'],
+    'tl' => ['title' => 'View', 'body' => 'Binubuksan ang approval history ng receipt, at — kapag na-Approve na — ang Mark Deposited action.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

@@ -15,6 +15,17 @@ $stmt->execute($params);
 $transactions = $stmt->fetchAll();
 
 $pageTitle = 'Tax Transactions';
+$pageHelp = [
+    ['selector' => 'select[name="direction"]',
+        'en' => ['title' => 'Direction / Status filters', 'body' => 'Direction: Input (tax on bills), Output (tax on invoices), or Withholding (from AP payments). Status: Pending or Remitted.'],
+        'tl' => ['title' => 'Direction / Status filters', 'body' => 'Direction: Input (buwis sa bills), Output (buwis sa invoices), o Withholding (mula sa AP payments). Status: Pending o Remitted.']],
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'This whole list', 'body' => 'Generated automatically whenever a taxed Bill/Invoice is approved or a payment applies withholding — nothing here is entered by hand.'],
+        'tl' => ['title' => 'Ang buong listahan', 'body' => 'Awtomatikong nabubuo tuwing ma-approve ang isang tinaxan na Bill/Invoice o may withholding na payment — walang manu-manong inilagay dito.']],
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'Source column', 'body' => 'Which AP or AR document produced this tax line; click through for the exact transaction.'],
+        'tl' => ['title' => 'Source column', 'body' => 'Kung aling AP o AR na dokumento ang nagbunga ng tax line na ito; sundan para sa eksaktong transaksyon.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

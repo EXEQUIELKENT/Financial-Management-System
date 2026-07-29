@@ -29,6 +29,17 @@ if (isset($_GET['export'])) {
 }
 
 $pageTitle = 'Trial Balance';
+$pageHelp = [
+    ['selector' => 'input[name="as_of"]',
+        'en' => ['title' => 'As Of date', 'body' => 'Shows every account\'s Debit/Credit movement up through this date.'],
+        'tl' => ['title' => 'As Of date', 'body' => 'Ipinapakita ang Debit/Credit movement ng bawat account hanggang sa petsang ito.']],
+    ['selector' => '.alert-success, .alert-critical',
+        'en' => ['title' => 'Bottom banner', 'body' => 'Green "Books are in balance" when Total Debit equals Total Credit — should always be true unless a document was edited outside the normal workflow.'],
+        'tl' => ['title' => 'Bottom banner', 'body' => 'Berdeng "Books are in balance" kapag magkatumbas ang Total Debit at Total Credit — dapat laging totoo maliban kung may na-edit na dokumento sa labas ng normal na workflow.']],
+    ['selector' => 'a[href*="export=1"]',
+        'en' => ['title' => 'Export CSV', 'body' => 'Downloads exactly what\'s shown in the table.'],
+        'tl' => ['title' => 'Export CSV', 'body' => 'Nagda-download ng eksaktong nakikita sa table.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

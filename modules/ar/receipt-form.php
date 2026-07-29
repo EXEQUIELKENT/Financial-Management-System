@@ -89,6 +89,17 @@ if ($selectedCustomer) {
 }
 
 $pageTitle = 'New AR Receipt';
+$pageHelp = [
+    ['selector' => 'select[name="customer_id"]',
+        'en' => ['title' => 'Customer', 'body' => 'Selecting one loads that customer\'s open invoices below.'],
+        'tl' => ['title' => 'Customer', 'body' => 'Kapag pumili, ilo-load ang open na invoices ng customer na iyon sa ibaba.']],
+    ['selector' => '.applyAmt',
+        'en' => ['title' => 'Apply Amount column', 'body' => 'Enter how much of this receipt to apply toward each open invoice — full or partial, across as many invoices as you like.'],
+        'tl' => ['title' => 'Apply Amount Column', 'body' => 'Ilagay kung magkano sa receipt na ito ang ilalapat sa bawat open na invoice — buo o bahagi, sa kahit ilang invoice.']],
+    ['selector' => '#totalDisp',
+        'en' => ['title' => 'Total Amount', 'body' => 'Sums everything you\'ve applied — this is what gets deposited into the chosen cash/bank account.'],
+        'tl' => ['title' => 'Total Amount', 'body' => 'Kabuuan ng lahat ng inilapat mo — ito ang ide-deposito sa piniling cash/bank account.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

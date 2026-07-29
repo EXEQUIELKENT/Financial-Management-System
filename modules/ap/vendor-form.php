@@ -45,6 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = $id ? 'Edit Vendor' : 'New Vendor';
+$pageHelp = [
+    ['selector' => 'input[name="vendor_code"]',
+        'en' => ['title' => 'Vendor Code', 'body' => 'Leave blank to auto-generate one (e.g. V0001).'],
+        'tl' => ['title' => 'Vendor Code', 'body' => 'Iwanang blangko para awtomatikong makabuo ng isa (hal. V0001).']],
+    ['selector' => 'input[name="payment_terms_days"]',
+        'en' => ['title' => 'Payment Terms (days)', 'body' => 'Used to auto-suggest a Due Date when you later create a Bill for this vendor.'],
+        'tl' => ['title' => 'Payment Terms (days)', 'body' => 'Ginagamit para awtomatikong magmungkahi ng Due Date paggawa mo ng Bill para sa vendor na ito.']],
+    ['selector' => 'select[name="status"]',
+        'en' => ['title' => 'Status', 'body' => 'Inactive vendors no longer appear in the vendor picker on new Bills, but past history is kept.'],
+        'tl' => ['title' => 'Status', 'body' => 'Hindi na lalabas ang mga Inactive na vendor sa picker ng bagong Bills, pero mananatili ang kanilang history.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:640px;">

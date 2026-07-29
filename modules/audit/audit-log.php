@@ -15,6 +15,14 @@ $logs = $stmt->fetchAll();
 $modules = $db->query("SELECT DISTINCT module FROM audit_log ORDER BY module")->fetchAll();
 
 $pageTitle = 'Audit Log';
+$pageHelp = [
+    ['selector' => 'select[name="module"]',
+        'en' => ['title' => 'Module filter', 'body' => 'Shows every logged action, or narrow to just one module (ap, ar, gl, cash, tax, etc.).'],
+        'tl' => ['title' => 'Module filter', 'body' => 'Ipinapakita ang lahat ng naka-log na aksyon, o i-narrow sa isang module lang (ap, ar, gl, cash, tax, atbp).']],
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'This whole page', 'body' => 'A permanent, un-editable record — every create/update/approve/void/login action, by whom, and when. Nothing here can be changed or deleted, even by an Admin.'],
+        'tl' => ['title' => 'Ang buong pahinang ito', 'body' => 'Isang permanente at hindi na-eedit na rekord — bawat create/update/approve/void/login na aksyon, kung sino, at kailan. Walang puwedeng baguhin o burahin dito, kahit ang Admin.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

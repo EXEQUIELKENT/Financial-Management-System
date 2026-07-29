@@ -60,6 +60,14 @@ if (!$id) {
     $periods = $db->query("SELECT * FROM budget_periods WHERE status='Open' ORDER BY start_date DESC")->fetchAll();
     $departments = $db->query("SELECT * FROM departments ORDER BY name")->fetchAll();
     $pageTitle = 'New Budget';
+    $pageHelp = [
+        ['selector' => 'select[name="budget_period_id"]',
+            'en' => ['title' => 'Budget Period', 'body' => 'The fiscal period this budget belongs to (create one under Budget Periods first if none exist).'],
+            'tl' => ['title' => 'Budget Period', 'body' => 'Ang fiscal period na kinabibilangan ng budget na ito (gumawa muna ng isa sa Budget Periods kung wala pa).']],
+        ['selector' => 'select[name="department_id"]',
+            'en' => ['title' => 'Department', 'body' => 'Optional — scope this budget to one department, or leave it for the whole organization.'],
+            'tl' => ['title' => 'Department', 'body' => 'Opsyonal — i-scope ang budget na ito sa isang department, o iwanan para sa buong organisasyon.']],
+    ];
     include __DIR__ . '/../../includes/header.php';
     ?>
     <div class="card" style="max-width:520px;">
@@ -110,6 +118,25 @@ $existingAccountIds = array_column($lines, 'account_id');
 $accounts = $db->query("SELECT id, account_code, account_name FROM coa_accounts WHERE is_active=1 AND account_type IN ('Expense','Revenue') ORDER BY account_code")->fetchAll();
 
 $pageTitle = 'Budget: ' . $budget['name'];
+$pageHelp = [];
+if ($budget['status'] === 'Draft') {
+    $pageHelp[] = ['selector' => 'select[name="account_id"]',
+        'en' => ['title' => 'Add Account Line', 'body' => 'Adds an account to this budget with 12 blank monthly amounts (only while still Draft).'],
+        'tl' => ['title' => 'Magdagdag ng Account Line', 'body' => 'Nagdadagdag ng account sa budget na ito na may 12 blangkong buwanang halaga (habang Draft pa lang).']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Monthly grid', 'body' => 'Enter a budgeted amount per account per month — Save Amounts to keep changes.'],
+    'tl' => ['title' => 'Buwanang grid', 'body' => 'Ilagay ang budgeted amount kada account kada buwan — i-click ang Save Amounts para i-save ang mga pagbabago.']];
+if ($budget['status'] === 'Draft' && !empty($lines)) {
+    $pageHelp[] = ['selector' => 'button[data-confirm="Remove this line?"]',
+        'en' => ['title' => '✕ (remove line)', 'body' => 'Removes that account line and its monthly amounts entirely.'],
+        'tl' => ['title' => '✕ (alisin ang line)', 'body' => 'Inaalis ang account line na iyon at ang lahat ng buwanang halaga nito.']];
+}
+if ($budget['status'] === 'Draft' && has_permission('budget.approve')) {
+    $pageHelp[] = ['selector' => 'button[data-confirm="Approve this budget?"]',
+        'en' => ['title' => 'Approve', 'body' => 'Approver-only. Only Approved budgets are counted in the Variance Report and the Dashboard\'s Budget Utilization KPI.'],
+        'tl' => ['title' => 'Approve', 'body' => 'Para sa Approver lamang. Ang Approved na budget lang ang isinasama sa Variance Report at sa Budget Utilization KPI ng Dashboard.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

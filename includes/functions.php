@@ -11,6 +11,18 @@ function format_date($date, string $fmt = 'M d, Y'): string {
     return $ts ? date($fmt, $ts) : '';
 }
 
+/**
+ * Appends a cache-busting ?v=<file mtime> to a static asset URL, so browsers
+ * pick up edited CSS/JS immediately instead of serving a stale cached copy
+ * (which is otherwise very easy to hit during active development, since none
+ * of these asset tags had any versioning before).
+ */
+function asset_url(string $relativePath): string {
+    $diskPath = __DIR__ . '/../' . ltrim($relativePath, '/');
+    $v = file_exists($diskPath) ? filemtime($diskPath) : time();
+    return rtrim(BASE_URL, '/') . '/' . ltrim($relativePath, '/') . '?v=' . $v;
+}
+
 function redirect(string $path): void {
     $url = str_starts_with($path, 'http') ? $path : rtrim(BASE_URL, '/') . '/' . ltrim($path, '/');
     header('Location: ' . $url);
@@ -85,6 +97,34 @@ function display_status(string $status, ?string $dueDate = null): string {
         return 'Overdue';
     }
     return $status;
+}
+
+/**
+ * Renders a horizontal "you are here" progress stepper for a document's
+ * lifecycle (Draft -> Approved -> Paid, etc). $labels is the ordered list of
+ * stage names; $currentIndex is which one the record is currently at; pass
+ * $stoppedLabel (e.g. "Voided", "Rejected") when the normal flow was
+ * interrupted, which replaces the stepper with a single stopped-state pill.
+ */
+function render_status_stepper(array $labels, int $currentIndex, ?string $stoppedLabel = null): string {
+    if ($stoppedLabel !== null) {
+        return '<div class="status-stepper-stopped">' . e($stoppedLabel) . '</div>';
+    }
+    $lastIndex = count($labels) - 1;
+    $html = '<div class="status-stepper">';
+    foreach ($labels as $i => $label) {
+        // The final stage is shown as complete (checkmark) rather than "active" once
+        // reached -- there's nothing left to progress toward, so it should read as done.
+        $isDone = $i < $currentIndex || ($i === $currentIndex && $currentIndex === $lastIndex);
+        $state = $isDone ? 'done' : ($i === $currentIndex ? 'active' : 'upcoming');
+        $icon = $isDone ? '&#10003;' : (string)($i + 1);
+        $html .= '<div class="status-step ' . $state . '">'
+               . '<span class="status-step-dot">' . $icon . '</span>'
+               . '<span class="status-step-label">' . e($label) . '</span>'
+               . '</div>';
+    }
+    $html .= '</div>';
+    return $html;
 }
 
 function status_badge_class(string $status): string {

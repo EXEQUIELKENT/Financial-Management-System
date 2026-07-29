@@ -6,6 +6,15 @@ $db = get_db();
 $taxTypes = $db->query("SELECT * FROM tax_types ORDER BY name")->fetchAll();
 
 $pageTitle = 'Tax Types & Rates';
+$pageHelp = [];
+if (has_permission('tax.create')) {
+    $pageHelp[] = ['selector' => 'a[href="tax-type-form.php"]',
+        'en' => ['title' => '+ New Tax Type', 'body' => 'Defines a tax (e.g. VAT, Withholding Tax) and its rate, available to pick on Bill/Invoice lines and AP payments.'],
+        'tl' => ['title' => '+ Bagong Tax Type', 'body' => 'Nagtatakda ng buwis (hal. VAT, Withholding Tax) at ang rate nito, na puwedeng piliin sa Bill/Invoice lines at AP payments.']];
+    $pageHelp[] = ['selector' => 'a.btn-outline.btn-sm',
+        'en' => ['title' => 'Edit', 'body' => 'Change the rate or deactivate a tax type.'],
+        'tl' => ['title' => 'Edit', 'body' => 'Baguhin ang rate o i-deactivate ang isang tax type.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

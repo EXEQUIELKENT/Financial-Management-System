@@ -41,6 +41,17 @@ if (isset($_GET['export'])) {
 }
 
 $pageTitle = 'Income Statement';
+$pageHelp = [
+    ['selector' => 'input[name="date_from"]',
+        'en' => ['title' => 'From / To', 'body' => 'The date range this statement covers.'],
+        'tl' => ['title' => 'From / To', 'body' => 'Ang date range na sinasaklaw ng statement na ito.']],
+    ['selector' => '.kpi-card',
+        'en' => ['title' => 'Net Income card', 'body' => 'Total Revenue minus Total Expenses for the range — green if positive, red if a loss.'],
+        'tl' => ['title' => 'Net Income card', 'body' => 'Total Revenue bawas Total Expenses para sa range — berde kung positibo, pula kung lugi.']],
+    ['selector' => 'a[href*="export=1"]',
+        'en' => ['title' => 'Export CSV', 'body' => 'Downloads the full Revenue/Expense breakdown.'],
+        'tl' => ['title' => 'Export CSV', 'body' => 'Nagda-download ng buong breakdown ng Revenue/Expense.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

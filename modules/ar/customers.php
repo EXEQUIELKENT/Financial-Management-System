@@ -13,6 +13,19 @@ $stmt->execute($params);
 $customers = $stmt->fetchAll();
 
 $pageTitle = 'Customers';
+$pageHelp = [
+    ['selector' => 'input[name="q"]',
+        'en' => ['title' => 'Search box', 'body' => 'Filters by customer name or customer code as you search.'],
+        'tl' => ['title' => 'Search Box', 'body' => 'Hinahanap ang customer sa pangalan o customer code habang nagta-type ka.']],
+];
+if (has_permission('ar.create')) {
+    $pageHelp[] = ['selector' => 'a[href="customer-form.php"]',
+        'en' => ['title' => '+ New Customer', 'body' => 'Adds a customer record. Leave the code blank to have one generated automatically.'],
+        'tl' => ['title' => '+ Bagong Customer', 'body' => 'Magdagdag ng customer record. Iwanang blangko ang code para awtomatikong makabuo ng isa.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'View / Edit', 'body' => 'View opens the customer\'s profile: contact info, outstanding balance, and every invoice and receipt. Edit updates contact details, terms, or marks them Inactive.'],
+    'tl' => ['title' => 'View / Edit', 'body' => 'Binubuksan ng View ang profile ng customer: contact info, outstanding balance, at bawat invoice at receipt. Ina-update ng Edit ang contact details, terms, o minamarkahan silang Inactive.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

@@ -18,6 +18,14 @@ $stmt->execute([$dateFrom, $dateTo]);
 $rows = $stmt->fetchAll();
 
 $pageTitle = 'Tax Compliance Summary';
+$pageHelp = [
+    ['selector' => 'input[name="date_from"]',
+        'en' => ['title' => 'Date range', 'body' => 'Summarizes tax activity within this window, grouped by tax type and direction.'],
+        'tl' => ['title' => 'Date range', 'body' => 'Ibinubuod ang tax activity sa loob ng window na ito, naka-grupo ayon sa tax type at direction.']],
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'Pending badge', 'body' => 'Amber if there\'s still an unremitted amount for that type/direction; green once fully remitted.'],
+        'tl' => ['title' => 'Pending badge', 'body' => 'Dilaw kung may hindi pa naremit na halaga para sa type/direction na iyon; berde kapag na-remit na nang buo.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

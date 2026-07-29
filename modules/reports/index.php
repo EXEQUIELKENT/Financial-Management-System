@@ -3,6 +3,11 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_permission('reports.view');
 
 $pageTitle = 'Financial Reports & Analytics';
+$pageHelp = [
+    ['selector' => '.kpi-grid',
+        'en' => ['title' => 'Every report here', 'body' => 'Reads live from posted General Ledger activity — nothing to run, close, or refresh beforehand.'],
+        'tl' => ['title' => 'Bawat report dito', 'body' => 'Direktang nagbabasa mula sa naka-post na General Ledger activity — walang kailangang patakbuhin, isara, o i-refresh bago ito.']],
+];
 include __DIR__ . '/../../includes/header.php';
 
 $reports = [

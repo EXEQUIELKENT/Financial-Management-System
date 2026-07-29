@@ -28,6 +28,19 @@ if (isset($_GET['export']) && !empty($rows)) {
 }
 
 $pageTitle = 'Custom GL Detail Report';
+$pageHelp = [
+    ['selector' => 'select[name="account_ids[]"]',
+        'en' => ['title' => 'Accounts multi-select', 'body' => 'Ctrl/Cmd+click to pick more than one account.'],
+        'tl' => ['title' => 'Accounts multi-select', 'body' => 'Ctrl/Cmd+click para pumili ng higit sa isang account.']],
+    ['selector' => 'button[type="submit"].btn-primary',
+        'en' => ['title' => 'Run Report', 'body' => 'Lists every posted journal line for the selected accounts within the date range.'],
+        'tl' => ['title' => 'Run Report', 'body' => 'Ilinilista ang bawat naka-post na journal line para sa mga napiling account sa loob ng date range.']],
+];
+if (!empty($rows)) {
+    $pageHelp[] = ['selector' => 'table.data-table a',
+        'en' => ['title' => 'Entry No. link', 'body' => 'Opens the full journal entry that line belongs to.'],
+        'tl' => ['title' => 'Entry No. link', 'body' => 'Binubuksan ang buong journal entry na kinabibilangan ng linyang iyon.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

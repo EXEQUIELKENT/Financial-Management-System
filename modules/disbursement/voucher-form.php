@@ -72,6 +72,20 @@ if ($selectedVendor) {
 }
 
 $pageTitle = 'New Disbursement Voucher';
+$pageHelp = [
+    ['selector' => '#payeeType',
+        'en' => ['title' => 'Payee Type', 'body' => 'Vendor shows a vendor picker and lets you settle their open bills below; Employee/Other skip straight to ad hoc lines.'],
+        'tl' => ['title' => 'Payee Type', 'body' => 'Ipinapakita ng Vendor ang vendor picker at puwede mong i-settle ang mga open bill nila sa ibaba; ang Employee/Other ay dumideretso sa ad hoc lines.']],
+    ['selector' => '.table-wrap', 'nth' => 0,
+        'en' => ['title' => 'Settle Open AP Bills', 'body' => 'Optional — check off a vendor\'s open bills and how much to apply toward each.'],
+        'tl' => ['title' => 'Settle Open AP Bills', 'body' => 'Opsyonal — i-check ang mga open bill ng vendor at magkano ang ilalapat sa bawat isa.']],
+    ['selector' => '.table-wrap', 'nth' => 1,
+        'en' => ['title' => 'Ad Hoc Expense Lines', 'body' => 'For cash advances or expenses not tied to an existing AP bill — pick an account, description, and amount.'],
+        'tl' => ['title' => 'Ad Hoc Expense Lines', 'body' => 'Para sa cash advance o gastos na hindi kabit sa umiiral na AP bill — pumili ng account, description, at halaga.']],
+    ['selector' => 'button[type="submit"]',
+        'en' => ['title' => 'Submit for Approval', 'body' => 'Sends the voucher straight to Pending Approval — there is no separate Draft stage to save first.'],
+        'tl' => ['title' => 'Isumite para sa Approval', 'body' => 'Direktang ipapadala ang voucher sa Pending Approval — walang hiwalay na Draft stage bago ito.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

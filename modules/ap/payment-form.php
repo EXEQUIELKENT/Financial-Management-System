@@ -103,6 +103,20 @@ if ($selectedVendor) {
 }
 
 $pageTitle = 'New AP Payment';
+$pageHelp = [
+    ['selector' => 'select[name="vendor_id"]',
+        'en' => ['title' => 'Vendor', 'body' => 'Selecting one loads that vendor\'s open bills below.'],
+        'tl' => ['title' => 'Vendor', 'body' => 'Kapag pumili, ilo-load ang open na bills ng vendor na iyon sa ibaba.']],
+    ['selector' => '.applyAmt',
+        'en' => ['title' => 'Apply Amount column', 'body' => 'Enter how much to pay toward each open bill — full or partial, across as many bills as you like.'],
+        'tl' => ['title' => 'Apply Amount Column', 'body' => 'Ilagay kung magkano ang ibabayad sa bawat open na bill — buo o bahagi, sa kahit ilang bill.']],
+    ['selector' => '#whtType',
+        'en' => ['title' => 'Withhold Tax?', 'body' => 'Optional — deducts a withholding tax percentage from the gross amount; the net cash actually paid out is reduced accordingly.'],
+        'tl' => ['title' => 'Withhold Tax?', 'body' => 'Opsyonal — magbabawas ng withholding tax percentage mula sa gross amount; mababawasan din ang aktwal na cash na ibabayad.']],
+    ['selector' => '#netDisp',
+        'en' => ['title' => 'Net Cash Paid', 'body' => 'What actually leaves the cash/bank account, after any withholding.'],
+        'tl' => ['title' => 'Net Cash Paid', 'body' => 'Ang aktwal na lalabas sa cash/bank account, pagkatapos ng anumang withholding.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

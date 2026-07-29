@@ -6,6 +6,20 @@ $db = get_db();
 $accounts = $db->query("SELECT ca.*, a.account_code, a.account_name AS gl_account_name FROM cash_accounts ca JOIN coa_accounts a ON a.id = ca.gl_account_id ORDER BY ca.account_name")->fetchAll();
 
 $pageTitle = 'Cash & Bank Accounts';
+$pageHelp = [];
+if (has_permission('cash.create')) {
+    $pageHelp[] = ['selector' => 'a[href="account-form.php"]',
+        'en' => ['title' => '+ New Account', 'body' => 'Adds a cash/bank account, linked to a GL asset account, with an opening balance.'],
+        'tl' => ['title' => '+ Bagong Account', 'body' => 'Nagdadagdag ng cash/bank account, na naka-link sa isang GL asset account, na may opening balance.']];
+}
+$pageHelp[] = ['selector' => 'a.btn-outline.btn-sm',
+    'en' => ['title' => 'Register', 'body' => 'Opens the full transaction history and running balance for that account.'],
+    'tl' => ['title' => 'Register', 'body' => 'Binubuksan ang buong transaction history at running balance ng account na iyon.']];
+if (has_permission('cash.create')) {
+    $pageHelp[] = ['selector' => 'a.btn-outline.btn-sm', 'nth' => 1,
+        'en' => ['title' => 'Edit', 'body' => 'Update the account\'s name, bank details, linked GL account, or status.'],
+        'tl' => ['title' => 'Edit', 'body' => 'I-update ang pangalan, detalye ng bangko, naka-link na GL account, o status ng account.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

@@ -7,6 +7,11 @@ $vouchers = $db->query("SELECT dv.*, u.full_name AS requested_by_name FROM disbu
                          WHERE dv.status = 'PendingApproval' ORDER BY dv.dv_date")->fetchAll();
 
 $pageTitle = 'Disbursement Approval Queue';
+$pageHelp = [
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'This list', 'body' => 'Only vouchers currently in PendingApproval status — everything here needs your decision. Review opens it so you can Approve or Reject with an optional comment.'],
+        'tl' => ['title' => 'Ang Listahang Ito', 'body' => 'Mga voucher lamang na PendingApproval — lahat dito ay kailangan ng iyong desisyon. Binubuksan ng Review para i-Approve o i-Reject na may opsyonal na komento.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

@@ -13,6 +13,19 @@ $stmt->execute($params);
 $invoices = $stmt->fetchAll();
 
 $pageTitle = 'Accounts Receivable - Invoices';
+$pageHelp = [
+    ['selector' => 'select[name="status"]',
+        'en' => ['title' => 'Status filter', 'body' => 'Narrows the list to just one status: Draft, Open, PartiallyPaid, Paid, or Void.'],
+        'tl' => ['title' => 'Status Filter', 'body' => 'Ipinapakita lamang ang mga invoice na may piniling status: Draft, Open, PartiallyPaid, Paid, o Void.']],
+];
+if (has_permission('ar.create')) {
+    $pageHelp[] = ['selector' => 'a[href="invoice-form.php"]',
+        'en' => ['title' => '+ New Invoice', 'body' => 'Create a new invoice against a customer. Saves as Draft — no accounting effect until an Approver posts it.'],
+        'tl' => ['title' => '+ Bagong Invoice', 'body' => 'Gumawa ng bagong invoice laban sa isang customer. Mase-save bilang Draft — walang epekto sa accounting hangga\'t hindi ito ini-post ng isang Approver.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'The table', 'body' => 'The Status badge shows "Overdue" if an invoice is Open/PartiallyPaid and past its due date. Click View to open an invoice\'s detail page.'],
+    'tl' => ['title' => 'Ang Talahanayan', 'body' => 'Lalabas na "Overdue" ang Status badge kung Open/PartiallyPaid pa ang invoice at lagpas na sa due date. I-click ang View para buksan ang detalye ng invoice.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

@@ -98,6 +98,26 @@ $lineStmt->execute([$id]);
 $lines = $lineStmt->fetchAll();
 
 $pageTitle = 'Bill ' . $bill['bill_no'];
+$pageHelp = [
+    ['selector' => '.status-stepper, .status-stepper-stopped',
+        'en' => ['title' => 'Stepper at the top', 'body' => 'Shows this bill\'s stage: Drafted, Approved & Posted, or Fully Paid — or Voided if stopped.'],
+        'tl' => ['title' => 'Stepper sa Itaas', 'body' => 'Ipinapakita ang stage ng bill na ito: Drafted, Approved & Posted, o Fully Paid — o Voided kung natigil.']],
+];
+if ($bill['status'] === 'Draft' && has_permission('ap.approve')) {
+    $pageHelp[] = ['selector' => '.btn-accent',
+        'en' => ['title' => 'Approve & Post', 'body' => 'Books Dr. Expense/Asset (+ tax) / Cr. Accounts Payable. You can\'t approve a bill you created yourself.'],
+        'tl' => ['title' => 'Approve & Post', 'body' => 'Magbo-book ng Dr. Expense/Asset (+ tax) / Cr. Accounts Payable. Hindi mo puwedeng i-approve ang bill na ikaw mismo ang gumawa.']];
+}
+if (in_array($bill['status'], ['Open','PartiallyPaid'], true) && has_permission('ap.approve')) {
+    $pageHelp[] = ['selector' => '.btn-danger',
+        'en' => ['title' => 'Void', 'body' => 'For an Open/PartiallyPaid bill — books an automatic reversing entry rather than deleting it.'],
+        'tl' => ['title' => 'Void', 'body' => 'Para sa Open/PartiallyPaid na bill — magbo-book ng awtomatikong reversing entry sa halip na burahin ito.']];
+}
+if ($bill['journal_entry_id']) {
+    $pageHelp[] = ['selector' => 'a[href*="journal-entry-view.php"]',
+        'en' => ['title' => 'View GL Entry link', 'body' => 'Jumps straight to the journal entry this bill produced once posted.'],
+        'tl' => ['title' => 'Link ng GL Entry', 'body' => 'Direktang pupunta sa journal entry na nabuo ng bill na ito nang ma-post.']];
+}
 include __DIR__ . '/../../includes/header.php';
 $eff = display_status($bill['status'], $bill['due_date']);
 ?>
@@ -119,6 +139,11 @@ $eff = display_status($bill['status'], $bill['due_date']);
             <a href="bills.php" class="btn btn-outline">Back</a>
         </div>
     </div>
+    <?php
+        $stepIndex = ['Draft' => 0, 'Open' => 1, 'PartiallyPaid' => 1, 'Paid' => 2][$bill['status']] ?? 0;
+        $stopped = $bill['status'] === 'Void' ? 'Voided — a reversing entry was booked to the GL' : null;
+        echo render_status_stepper(['1. Drafted by Accountant', '2. Approved & Posted to GL', '3. Fully Paid'], $stepIndex, $stopped);
+    ?>
     <div class="form-row">
         <div><span class="text-muted">Vendor</span><br><a href="vendor-view.php?id=<?= $bill['vendor_id'] ?>"><?= e($bill['vendor_name']) ?></a></div>
         <div><span class="text-muted">Bill Date</span><br><?= format_date($bill['bill_date']) ?></div>

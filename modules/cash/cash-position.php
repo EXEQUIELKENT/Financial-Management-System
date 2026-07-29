@@ -10,6 +10,17 @@ $recentStmt = $db->query("SELECT t.*, ca.account_name FROM cash_transactions t J
 $recent = $recentStmt->fetchAll();
 
 $pageTitle = 'Cash Position';
+$pageHelp = [
+    ['selector' => '.kpi-card.primary',
+        'en' => ['title' => 'Total Cash Position', 'body' => 'Sum of every active cash/bank account\'s current balance — this is what the Dashboard\'s Cash Position KPI shows too.'],
+        'tl' => ['title' => 'Total Cash Position', 'body' => 'Kabuuan ng current balance ng bawat aktibong cash/bank account — ito rin ang ipinapakita sa Cash Position KPI ng Dashboard.']],
+    ['selector' => '.kpi-card.accent',
+        'en' => ['title' => 'Per-account cards', 'body' => 'Each active account\'s own balance and type.'],
+        'tl' => ['title' => 'Per-account cards', 'body' => 'Ang sariling balance at type ng bawat aktibong account.']],
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'Recent Activity', 'body' => 'The last 15 transactions across every account, newest first.'],
+        'tl' => ['title' => 'Recent Activity', 'body' => 'Ang huling 15 transaksyon sa lahat ng account, pinakabago muna.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="kpi-grid">

@@ -20,6 +20,19 @@ $stmt->execute($params);
 $entries = $stmt->fetchAll();
 
 $pageTitle = 'Journal Entries';
+$pageHelp = [
+    ['selector' => '.table-filters',
+        'en' => ['title' => 'Status / date filters', 'body' => 'Narrow the list by Draft, Posted, or Void status, and/or a date range.'],
+        'tl' => ['title' => 'Status / Date Filter', 'body' => 'Paliitin ang listahan ayon sa Draft, Posted, o Void status, at/o isang date range.']],
+];
+if (has_permission('gl.create')) {
+    $pageHelp[] = ['selector' => 'a[href="journal-entry-form.php"]',
+        'en' => ['title' => '+ New Journal Entry', 'body' => 'For manual adjustments only — every other module (AP, AR, Disbursement, etc.) posts entries automatically. Saves as Draft.'],
+        'tl' => ['title' => '+ Bagong Journal Entry', 'body' => 'Para sa manual na pagsasaayos lamang — awtomatikong nagpo-post ng entries ang lahat ng ibang module (AP, AR, Disbursement, atbp). Mase-save bilang Draft.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Source column', 'body' => 'Which module created each entry — "manual" means someone typed it in directly here. Click View to see Debit/Credit lines and Approve & Post or Void it.'],
+    'tl' => ['title' => 'Source Column', 'body' => 'Kung aling module ang gumawa ng bawat entry — ang "manual" ay ibig sabihin direktang na-type ito rito. I-click ang View para makita ang Debit/Credit lines at i-Approve & Post o i-Void.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

@@ -51,6 +51,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $accounts = $db->query("SELECT id, account_code, account_name FROM coa_accounts WHERE is_active = 1 ORDER BY account_code")->fetchAll();
 
 $pageTitle = 'New Journal Entry';
+$pageHelp = [
+    ['selector' => '#lineTable',
+        'en' => ['title' => 'Line grid', 'body' => 'Pick an account and enter either a Debit or a Credit per line (not both). Add at least two lines.'],
+        'tl' => ['title' => 'Line Grid', 'body' => 'Pumili ng account at maglagay ng Debit o Credit sa bawat linya (hindi pareho). Magdagdag ng hindi bababa sa dalawang linya.']],
+    ['selector' => 'button[onclick="addRow()"]',
+        'en' => ['title' => '+ Add Line', 'body' => 'Adds another blank Debit/Credit row.'],
+        'tl' => ['title' => '+ Magdagdag ng Linya', 'body' => 'Magdaragdag ng isa pang blankong Debit/Credit row.']],
+    ['selector' => '#balanceMsg',
+        'en' => ['title' => 'Balanced indicator', 'body' => 'Turns green only when Total Debit exactly equals Total Credit — required before you can save.'],
+        'tl' => ['title' => 'Balanced Indicator', 'body' => 'Magiging berde lamang kapag eksaktong magkatumbas ang Total Debit at Total Credit — kailangan bago makapag-save.']],
+    ['selector' => 'button[type="submit"]',
+        'en' => ['title' => 'Save as Draft', 'body' => 'Nothing posts to the ledger yet — an Approver still needs to Approve & Post it from the Journal Entries list.'],
+        'tl' => ['title' => 'I-save bilang Draft', 'body' => 'Wala pang mapo-post sa ledger — kailangan pa itong i-Approve & Post ng isang Approver mula sa Journal Entries list.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

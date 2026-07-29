@@ -39,6 +39,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (!$id) {
     $cashAccounts = $db->query("SELECT id, account_name, current_balance FROM cash_accounts WHERE status='Active' ORDER BY account_name")->fetchAll();
     $pageTitle = 'New Bank Reconciliation';
+    $pageHelp = [
+        ['selector' => 'input[name="statement_balance"]',
+            'en' => ['title' => 'Statement Balance', 'body' => 'Copy this straight from your actual bank statement.'],
+            'tl' => ['title' => 'Statement Balance', 'body' => 'Kopyahin ito mula sa aktwal mong bank statement.']],
+        ['selector' => 'select[name="cash_account_id"]',
+            'en' => ['title' => 'Book Balance', 'body' => 'The account\'s current system balance is used automatically — you\'ll reconcile the difference on the next screen.'],
+            'tl' => ['title' => 'Book Balance', 'body' => 'Awtomatikong gagamitin ang kasalukuyang system balance ng account — pagtutugmain ang pagkakaiba sa susunod na screen.']],
+    ];
     include __DIR__ . '/../../includes/header.php';
     ?>
     <div class="card" style="max-width:520px;">
@@ -87,6 +95,21 @@ $adjustedBook = $recon['book_balance'] - $bankCharges + $interest + $errors;
 $difference = round($adjustedBank - $adjustedBook, 2);
 
 $pageTitle = 'Reconciliation: ' . $recon['account_name'];
+$pageHelp = [
+    ['selector' => '.kpi-grid .kpi-card', 'nth' => 2,
+        'en' => ['title' => 'Difference card', 'body' => 'Turns green once Statement and Book balances match after your reconciling items — that\'s when you can mark it Completed.'],
+        'tl' => ['title' => 'Difference card', 'body' => 'Nagiging berde kapag nagtugma na ang Statement at Book balance matapos ang mga reconciling item — saka mo na puwedeng i-Mark Completed.']],
+];
+if ($recon['status'] === 'InProgress') {
+    $pageHelp[] = ['selector' => '.form-row button[type="submit"]',
+        'en' => ['title' => '+ Add Item', 'body' => 'Outstanding Check / Deposit in Transit adjust the bank side; Bank Charge / Interest / Correction adjust the book side.'],
+        'tl' => ['title' => '+ Add Item', 'body' => 'Ang Outstanding Check / Deposit in Transit ay nag-aadjust sa bank side; ang Bank Charge / Interest / Correction ay nag-aadjust sa book side.']];
+}
+if ($recon['status'] === 'InProgress' && abs($difference) < 0.01) {
+    $pageHelp[] = ['selector' => 'button.btn-accent',
+        'en' => ['title' => 'Mark Completed', 'body' => 'Only appears once the difference is zero — locks in this reconciliation.'],
+        'tl' => ['title' => 'Mark Completed', 'body' => 'Lalabas lang kapag zero na ang difference — ito ang nag-lo-lock sa reconciliation na ito.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

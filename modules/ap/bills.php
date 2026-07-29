@@ -13,6 +13,22 @@ $stmt->execute($params);
 $bills = $stmt->fetchAll();
 
 $pageTitle = 'Accounts Payable - Bills';
+$pageHelp = [
+    ['selector' => 'select[name="status"]',
+        'en' => ['title' => 'Status filter', 'body' => 'Narrows the list to just one status: Draft, Open, PartiallyPaid, Paid, or Void.'],
+        'tl' => ['title' => 'Status Filter', 'body' => 'Ipinapakita lamang ang mga bill na may piniling status: Draft, Open, PartiallyPaid, Paid, o Void.']],
+    ['selector' => '.table-toolbar > div:last-child',
+        'en' => ['title' => 'Quick links', 'body' => 'Jump to Vendors, Payments, or the Aging Report — the other Accounts Payable screens.'],
+        'tl' => ['title' => 'Mabilisang Link', 'body' => 'Dumiretso sa Vendors, Payments, o Aging Report — ang iba pang Accounts Payable na mga screen.']],
+];
+if (has_permission('ap.create')) {
+    $pageHelp[] = ['selector' => 'a[href="bill-form.php"]',
+        'en' => ['title' => '+ New Bill', 'body' => 'Create a new bill against a vendor. Saves as Draft — no accounting effect until an Approver posts it.'],
+        'tl' => ['title' => '+ Bagong Bill', 'body' => 'Gumawa ng bagong bill laban sa isang vendor. Mase-save bilang Draft — walang epekto sa accounting hangga\'t hindi ito ini-post ng isang Approver.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'The table', 'body' => 'The Status badge shows "Overdue" if a bill is Open/PartiallyPaid and past its due date. Click View to open a bill\'s detail page.'],
+    'tl' => ['title' => 'Ang Talahanayan', 'body' => 'Lalabas na "Overdue" ang Status badge kung Open/PartiallyPaid pa ang bill at lagpas na sa due date. I-click ang View para buksan ang detalye ng bill.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

@@ -13,6 +13,22 @@ $stmt->execute($params);
 $vouchers = $stmt->fetchAll();
 
 $pageTitle = 'Disbursement Vouchers';
+$pageHelp = [
+    ['selector' => 'select[name="status"]',
+        'en' => ['title' => 'Status filter', 'body' => 'Narrows the list to Draft, PendingApproval, Approved, Paid, Rejected, or Void vouchers.'],
+        'tl' => ['title' => 'Status Filter', 'body' => 'Ipinapakita lamang ang mga voucher na may piniling status: Draft, PendingApproval, Approved, Paid, Rejected, o Void.']],
+    ['selector' => 'a[href="approval-queue.php"]',
+        'en' => ['title' => 'Approval Queue', 'body' => 'Jumps to just the vouchers currently waiting on an Approver.'],
+        'tl' => ['title' => 'Approval Queue', 'body' => 'Dumiretso sa mga voucher na naghihintay pa sa Approver.']],
+];
+if (has_permission('disbursement.create')) {
+    $pageHelp[] = ['selector' => 'a[href="voucher-form.php"]',
+        'en' => ['title' => '+ New Voucher', 'body' => 'Submit a payout request (vendor bill settlement, employee cash advance, or ad hoc expense) — goes straight to Pending Approval.'],
+        'tl' => ['title' => '+ Bagong Voucher', 'body' => 'Magsumite ng payout request (settlement ng vendor bill, cash advance ng empleyado, o ad hoc na gastos) — direktang mapupunta sa Pending Approval.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'View', 'body' => 'Opens the voucher\'s approval history, and — once Approved — the Mark Paid action.'],
+    'tl' => ['title' => 'View', 'body' => 'Binubuksan ang approval history ng voucher, at — kapag na-Approve na — ang Mark Paid action.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

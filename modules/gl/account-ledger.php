@@ -47,6 +47,14 @@ if ($accountId) {
 }
 
 $pageTitle = 'Account Ledger Inquiry';
+$pageHelp = [
+    ['selector' => 'select[name="account_id"]',
+        'en' => ['title' => 'Account / From / To', 'body' => 'Pick any GL account and a date range to see its full activity.'],
+        'tl' => ['title' => 'Account / From / To', 'body' => 'Pumili ng anumang GL account at date range para makita ang buong aktibidad nito.']],
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'Opening & Closing Balance', 'body' => 'Opening Balance is the account\'s balance right before the "From" date — the Balance column runs down line by line to the Closing Balance at the bottom. Click an Entry No. to open the full journal entry.'],
+        'tl' => ['title' => 'Opening at Closing Balance', 'body' => 'Ang Opening Balance ay ang balance ng account bago ang "From" date — dumadaloy ang Balance column pababa hanggang sa Closing Balance sa ilalim. I-click ang Entry No. para buksan ang buong journal entry.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

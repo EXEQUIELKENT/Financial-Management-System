@@ -41,6 +41,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = $id ? 'Edit Tax Type' : 'New Tax Type';
+$pageHelp = [
+    ['selector' => 'input[name="rate_percent"]',
+        'en' => ['title' => 'Rate (%)', 'body' => 'Applied automatically to any Bill/Invoice line (or AP payment withholding) that selects this tax type.'],
+        'tl' => ['title' => 'Rate (%)', 'body' => 'Awtomatikong ilalapat sa anumang Bill/Invoice line (o AP payment withholding) na pumili ng tax type na ito.']],
+    ['selector' => 'input[name="is_active"]',
+        'en' => ['title' => 'Active', 'body' => 'Inactive tax types no longer appear in the picker on new transactions.'],
+        'tl' => ['title' => 'Active', 'body' => 'Hindi na lalabas ang Inactive na tax types sa picker ng mga bagong transaksyon.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:480px;">

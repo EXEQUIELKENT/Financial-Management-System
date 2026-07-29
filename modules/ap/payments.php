@@ -8,6 +8,15 @@ $payments = $db->query("SELECT p.*, v.name AS vendor_name, c.account_name AS cas
                          ORDER BY p.payment_date DESC, p.id DESC LIMIT 200")->fetchAll();
 
 $pageTitle = 'Accounts Payable - Payments';
+$pageHelp = [];
+if (has_permission('ap.create')) {
+    $pageHelp[] = ['selector' => 'a[href="payment-form.php"]',
+        'en' => ['title' => '+ New Payment', 'body' => 'Pay one or more of a vendor\'s open bills, in full or partially, from a chosen cash/bank account.'],
+        'tl' => ['title' => '+ Bagong Payment', 'body' => 'Bayaran ang isa o higit pang open na bill ng vendor, buo o bahagi, mula sa piniling cash/bank account.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'The table', 'body' => 'Every payment ever recorded, with the vendor, method, cash account used, and amount.'],
+    'tl' => ['title' => 'Ang Talahanayan', 'body' => 'Bawat payment na naitala, kasama ang vendor, method, cash account na ginamit, at halaga.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

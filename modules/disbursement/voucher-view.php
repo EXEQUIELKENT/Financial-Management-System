@@ -112,6 +112,26 @@ $historyStmt->execute([$id]);
 $history = $historyStmt->fetchAll();
 
 $pageTitle = 'Disbursement Voucher ' . $dv['dv_no'];
+$pageHelp = [
+    ['selector' => '.status-stepper, .status-stepper-stopped',
+        'en' => ['title' => 'Stepper at the top', 'body' => 'Shows this voucher\'s stage: Submitted, Approved, or Paid — or a stopped state if Rejected/Voided.'],
+        'tl' => ['title' => 'Stepper sa Itaas', 'body' => 'Ipinapakita ang stage ng voucher: Submitted, Approved, o Paid — o stopped state kung Rejected/Voided.']],
+];
+if ($dv['status'] === 'PendingApproval' && has_permission('disbursement.approve')) {
+    $pageHelp[] = ['selector' => 'button[data-confirm="Approve this voucher?"]',
+        'en' => ['title' => 'Approve / Reject', 'body' => 'Approver-only. You can\'t approve one you requested yourself.'],
+        'tl' => ['title' => 'Approve / Reject', 'body' => 'Approver lamang. Hindi mo puwedeng i-approve ang isinumite mo mismo.']];
+}
+if ($dv['status'] === 'Approved' && has_permission('disbursement.approve')) {
+    $pageHelp[] = ['selector' => 'button[data-confirm="Mark as Paid and post to the GL?"]',
+        'en' => ['title' => 'Mark Paid', 'body' => 'Releases the cash, posts the GL entry, and (if bills were selected) auto-creates the matching AP payment.'],
+        'tl' => ['title' => 'Mark Paid', 'body' => 'Ilalabas ang cash, ipo-post ang GL entry, at (kung may napiling bills) awtomatikong gagawa ng katugmang AP payment.']];
+}
+if ($dv['status'] === 'Paid') {
+    $pageHelp[] = ['selector' => 'a[href*="voucher-print.php"]',
+        'en' => ['title' => 'Print', 'body' => 'A signed voucher slip with Requested By / Approved By lines.'],
+        'tl' => ['title' => 'Print', 'body' => 'Isang nilagdaang voucher slip na may Requested By / Approved By lines.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">
@@ -132,6 +152,11 @@ include __DIR__ . '/../../includes/header.php';
             <a href="vouchers.php" class="btn btn-outline">Back</a>
         </div>
     </div>
+    <?php
+        $stepIndex = ['Draft' => 0, 'PendingApproval' => 0, 'Approved' => 1, 'Paid' => 2][$dv['status']] ?? 0;
+        $stopped = $dv['status'] === 'Rejected' ? 'Rejected by the Approver' : ($dv['status'] === 'Void' ? 'Voided' : null);
+        echo render_status_stepper(['1. Submitted for Approval', '2. Approved', '3. Paid'], $stepIndex, $stopped);
+    ?>
     <div class="form-row">
         <div><span class="text-muted">Payee</span><br><?= e($dv['payee_name']) ?> (<?= e($dv['payee_type']) ?>)</div>
         <div><span class="text-muted">DV Date</span><br><?= format_date($dv['dv_date']) ?></div>

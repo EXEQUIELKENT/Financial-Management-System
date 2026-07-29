@@ -54,6 +54,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $roles = $db->query("SELECT * FROM roles ORDER BY name")->fetchAll();
 
 $pageTitle = $id ? 'Edit User' : 'New User';
+$pageHelp = [
+    ['selector' => 'select[name="role_id"]',
+        'en' => ['title' => 'Role', 'body' => 'Decides exactly which sidebar items and buttons this user will see — see the Getting Started guide for what each role can do.'],
+        'tl' => ['title' => 'Role', 'body' => 'Ito ang nagpapasya kung anong mga sidebar item at button ang makikita ng user na ito — tingnan ang Getting Started guide para malaman ang kaya ng bawat role.']],
+    ['selector' => 'input[name="password"]',
+        'en' => ['title' => 'Password', 'body' => 'Required when creating a new user; leave blank when editing an existing one to keep their current password.'],
+        'tl' => ['title' => 'Password', 'body' => 'Kailangan kapag gumagawa ng bagong user; iwanang blangko kapag nag-e-edit ng existing user para panatilihin ang kasalukuyang password.']],
+    ['selector' => 'select[name="status"]',
+        'en' => ['title' => 'Status', 'body' => 'Inactive users can no longer log in.'],
+        'tl' => ['title' => 'Status', 'body' => 'Hindi na makaka-login ang mga Inactive na user.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:520px;">

@@ -85,6 +85,23 @@ $accounts = $db->query("SELECT id, account_code, account_name FROM coa_accounts 
 $taxTypes = $db->query("SELECT id, name, rate_percent FROM tax_types WHERE is_active=1")->fetchAll();
 
 $pageTitle = $id ? 'Edit Invoice' : 'New Invoice';
+$pageHelp = [
+    ['selector' => '#customer_id',
+        'en' => ['title' => 'Customer', 'body' => 'Selecting one auto-fills Due Date from that customer\'s credit terms (you can still change it).'],
+        'tl' => ['title' => 'Customer', 'body' => 'Kapag pumili, awtomatikong mapupunan ang Due Date mula sa credit terms ng customer na iyon (puwede mo pa ring baguhin).']],
+    ['selector' => '#lineTable',
+        'en' => ['title' => 'Line items', 'body' => 'Each line needs a description, a revenue account, quantity, and unit price; Tax is optional per line.'],
+        'tl' => ['title' => 'Line Items', 'body' => 'Kailangan ng bawat linya ng description, revenue account, quantity, at unit price; opsyonal ang Tax bawat linya.']],
+    ['selector' => 'button[onclick="addRow()"]',
+        'en' => ['title' => '+ Add Line', 'body' => 'Adds another blank line item row.'],
+        'tl' => ['title' => '+ Magdagdag ng Linya', 'body' => 'Magdaragdag ng isa pang blangkong line item row.']],
+    ['selector' => '#totalDisp',
+        'en' => ['title' => 'Totals', 'body' => 'Subtotal, Tax, and Total recalculate live as you type.'],
+        'tl' => ['title' => 'Totals', 'body' => 'Awtomatikong nag-a-update ang Subtotal, Tax, at Total habang nagta-type ka.']],
+    ['selector' => 'button[type="submit"]',
+        'en' => ['title' => 'Save as Draft', 'body' => 'No accounting effect yet — an Approver still needs to Approve & Post it.'],
+        'tl' => ['title' => 'I-save bilang Draft', 'body' => 'Wala pang epekto sa accounting — kailangan pa itong i-Approve & Post ng isang Approver.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

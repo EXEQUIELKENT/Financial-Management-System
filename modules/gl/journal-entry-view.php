@@ -55,6 +55,21 @@ $totalDebit = array_sum(array_column($lines, 'debit'));
 $totalCredit = array_sum(array_column($lines, 'credit'));
 
 $pageTitle = 'Journal Entry ' . $entry['entry_no'];
+$pageHelp = [
+    ['selector' => '.status-stepper, .status-stepper-stopped',
+        'en' => ['title' => 'Stepper at the top', 'body' => 'Shows whether this entry is still Drafted or already Posted to the GL — or Voided, if the normal flow was stopped.'],
+        'tl' => ['title' => 'Stepper sa Itaas', 'body' => 'Ipinapakita kung Draft pa ang entry na ito o naka-Posted na sa GL — o Voided, kung natigil ang normal na daloy.']],
+];
+if ($entry['status'] === 'Draft' && has_permission('gl.post')) {
+    $pageHelp[] = ['selector' => '.btn-accent',
+        'en' => ['title' => 'Approve & Post', 'body' => 'Books it to the ledger permanently. You cannot post an entry you created yourself.'],
+        'tl' => ['title' => 'Approve & Post', 'body' => 'Permanenteng ipo-post ito sa ledger. Hindi mo puwedeng i-post ang entry na ikaw mismo ang gumawa.']];
+}
+if ($entry['status'] === 'Posted' && has_permission('gl.post')) {
+    $pageHelp[] = ['selector' => '.btn-danger',
+        'en' => ['title' => 'Void Entry', 'body' => 'Books an automatic equal-and-opposite reversing entry rather than deleting anything, preserving the audit trail.'],
+        'tl' => ['title' => 'I-void ang Entry', 'body' => 'Awtomatikong magbo-book ng katumbas na reversing entry sa halip na burahin ang kahit ano, para mapanatili ang audit trail.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">
@@ -76,6 +91,11 @@ include __DIR__ . '/../../includes/header.php';
             <a href="journal-entries.php" class="btn btn-outline">Back to List</a>
         </div>
     </div>
+    <?php
+        $stepIndex = ['Draft' => 0, 'Posted' => 1][$entry['status']] ?? 0;
+        $stopped = $entry['status'] === 'Void' ? 'Voided — a reversing entry was booked' : null;
+        echo render_status_stepper(['1. Drafted', '2. Posted to GL'], $stepIndex, $stopped);
+    ?>
     <div class="form-row">
         <div><span class="text-muted">Entry Date</span><br><?= format_date($entry['entry_date']) ?></div>
         <div><span class="text-muted">Reference</span><br><?= e($entry['reference'] ?: '—') ?></div>

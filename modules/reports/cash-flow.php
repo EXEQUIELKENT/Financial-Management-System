@@ -33,6 +33,17 @@ $beginningBalance = cash_balance_asof($db, date('Y-m-d', strtotime($dateFrom . '
 $endingBalance = $beginningBalance + $netChange;
 
 $pageTitle = 'Cash Flow Statement';
+$pageHelp = [
+    ['selector' => 'input[name="date_from"]',
+        'en' => ['title' => 'From / To', 'body' => 'The date range this statement covers.'],
+        'tl' => ['title' => 'From / To', 'body' => 'Ang date range na sinasaklaw ng statement na ito.']],
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'Operating / Investing / Financing', 'body' => 'Net cash movement in each category, based on how individual cash transactions were tagged when recorded.'],
+        'tl' => ['title' => 'Operating / Investing / Financing', 'body' => 'Net cash movement sa bawat category, batay sa kung paano na-tag ang bawat cash transaction noong na-record ito.']],
+    ['selector' => '.kpi-grid',
+        'en' => ['title' => 'Beginning / Ending Cash Balance', 'body' => 'Total cash across all accounts just before the range, and at its end.'],
+        'tl' => ['title' => 'Beginning / Ending Cash Balance', 'body' => 'Kabuuang cash sa lahat ng account bago magsimula ang range, at sa dulo nito.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

@@ -6,6 +6,18 @@ $db = get_db();
 $users = $db->query("SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id ORDER BY u.full_name")->fetchAll();
 
 $pageTitle = 'Users';
+$pageHelp = [];
+if (has_permission('users.create')) {
+    $pageHelp[] = ['selector' => 'a[href="form.php"]',
+        'en' => ['title' => '+ New User', 'body' => 'Creates a login and assigns one of the 4 roles (Admin, Accountant, Approver, Auditor).'],
+        'tl' => ['title' => '+ Bagong User', 'body' => 'Gumagawa ng login at nagtatalaga ng isa sa 4 na tungkulin (Admin, Accountant, Approver, Auditor).']];
+    $pageHelp[] = ['selector' => 'a.btn-outline.btn-sm',
+        'en' => ['title' => 'Edit', 'body' => 'Change a user\'s name, role, status, or reset their password (leave the password field blank to keep it unchanged).'],
+        'tl' => ['title' => 'Edit', 'body' => 'Baguhin ang pangalan, tungkulin, status ng user, o i-reset ang password (iwanang blangko ang password field para hindi ito baguhin).']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Last Login column', 'body' => 'When that user last signed in — "Never" if they haven\'t yet.'],
+    'tl' => ['title' => 'Last Login column', 'body' => 'Kailan huling naglog-in ang user na iyon — "Never" kung hindi pa nila nagagawa.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

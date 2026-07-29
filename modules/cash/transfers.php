@@ -8,6 +8,15 @@ $transfers = $db->query("SELECT t.*, f.account_name AS from_name, d.account_name
                           ORDER BY t.transfer_date DESC, t.id DESC")->fetchAll();
 
 $pageTitle = 'Cash Transfers';
+$pageHelp = [];
+if (has_permission('cash.create')) {
+    $pageHelp[] = ['selector' => 'a[href="transfer-form.php"]',
+        'en' => ['title' => '+ New Transfer', 'body' => 'Moves money between two of the agency\'s own cash/bank accounts.'],
+        'tl' => ['title' => '+ Bagong Transfer', 'body' => 'Naglilipat ng pera sa pagitan ng dalawang cash/bank account ng ahensya.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Table', 'body' => 'Every transfer ever made, showing the From and To accounts and amount.'],
+    'tl' => ['title' => 'Table', 'body' => 'Lahat ng transfer na nagawa na, ipinapakita ang From at To account at halaga.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

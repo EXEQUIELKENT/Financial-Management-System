@@ -112,6 +112,26 @@ $historyStmt->execute([$id]);
 $history = $historyStmt->fetchAll();
 
 $pageTitle = 'Collection Receipt ' . $cr['cr_no'];
+$pageHelp = [
+    ['selector' => '.status-stepper, .status-stepper-stopped',
+        'en' => ['title' => 'Stepper at the top', 'body' => 'Shows this receipt\'s stage: Submitted, Approved, or Deposited — or a stopped state if Rejected/Voided.'],
+        'tl' => ['title' => 'Stepper sa Itaas', 'body' => 'Ipinapakita ang stage ng receipt: Submitted, Approved, o Deposited — o stopped state kung Rejected/Voided.']],
+];
+if ($cr['status'] === 'PendingApproval' && has_permission('collection.approve')) {
+    $pageHelp[] = ['selector' => 'button[data-confirm="Approve this receipt?"]',
+        'en' => ['title' => 'Approve / Reject', 'body' => 'Approver-only. You can\'t approve one you recorded yourself.'],
+        'tl' => ['title' => 'Approve / Reject', 'body' => 'Approver lamang. Hindi mo puwedeng i-approve ang itinala mo mismo.']];
+}
+if ($cr['status'] === 'Approved' && has_permission('collection.approve')) {
+    $pageHelp[] = ['selector' => 'button[data-confirm="Mark as Deposited and post to the GL?"]',
+        'en' => ['title' => 'Mark Deposited', 'body' => 'Adds the cash, posts the GL entry, and (if invoices were selected) auto-creates the matching AR receipt.'],
+        'tl' => ['title' => 'Mark Deposited', 'body' => 'Idaragdag ang cash, ipo-post ang GL entry, at (kung may napiling invoices) awtomatikong gagawa ng katugmang AR receipt.']];
+}
+if ($cr['status'] === 'Deposited') {
+    $pageHelp[] = ['selector' => 'a[href*="receipt-print.php"]',
+        'en' => ['title' => 'Print', 'body' => 'A signed receipt slip with Received By / Approved By lines.'],
+        'tl' => ['title' => 'Print', 'body' => 'Isang nilagdaang receipt slip na may Received By / Approved By lines.']];
+}
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">
@@ -132,6 +152,11 @@ include __DIR__ . '/../../includes/header.php';
             <a href="receipts.php" class="btn btn-outline">Back</a>
         </div>
     </div>
+    <?php
+        $stepIndex = ['Draft' => 0, 'PendingApproval' => 0, 'Approved' => 1, 'Deposited' => 2][$cr['status']] ?? 0;
+        $stopped = $cr['status'] === 'Rejected' ? 'Rejected by the Approver' : ($cr['status'] === 'Void' ? 'Voided' : null);
+        echo render_status_stepper(['1. Submitted for Approval', '2. Approved', '3. Deposited'], $stepIndex, $stopped);
+    ?>
     <div class="form-row">
         <div><span class="text-muted">Payer</span><br><?= e($cr['payer_name']) ?> (<?= e($cr['payer_type']) ?>)</div>
         <div><span class="text-muted">CR Date</span><br><?= format_date($cr['cr_date']) ?></div>

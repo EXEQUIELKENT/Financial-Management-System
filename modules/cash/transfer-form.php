@@ -62,6 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cashAccounts = $db->query("SELECT id, account_name, current_balance FROM cash_accounts WHERE status='Active' ORDER BY account_name")->fetchAll();
 
 $pageTitle = 'New Cash Transfer';
+$pageHelp = [
+    ['selector' => 'select[name="from_cash_account_id"]',
+        'en' => ['title' => 'From / To', 'body' => 'Must be two different cash/bank accounts. Posts Dr. the destination\'s GL account / Cr. the source\'s.'],
+        'tl' => ['title' => 'From / To', 'body' => 'Kailangan dalawang magkaibang cash/bank account. Nagpo-post ng Dr. sa GL account ng destination / Cr. sa source.']],
+    ['selector' => 'input[name="amount"]',
+        'en' => ['title' => 'Amount', 'body' => 'Deducted from From and added to To — total cash across the organization stays the same, only the split between accounts changes.'],
+        'tl' => ['title' => 'Amount', 'body' => 'Ibinabawas sa From at idinadagdag sa To — pareho pa rin ang total cash ng organisasyon, ang paghahati lang sa pagitan ng accounts ang nagbabago.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:640px;">

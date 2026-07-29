@@ -21,12 +21,26 @@ $totalOutstanding = 0;
 foreach ($bills as $b) { if ($b['status'] !== 'Void') $totalOutstanding += ($b['total_amount'] - $b['amount_paid']); }
 
 $pageTitle = 'Vendor: ' . $vendor['name'];
+$pageHelp = [
+    ['selector' => '.form-row',
+        'en' => ['title' => 'Outstanding Balance', 'body' => 'Total of every unpaid/partially-paid bill for this vendor, live.'],
+        'tl' => ['title' => 'Outstanding Balance', 'body' => 'Kabuuan ng bawat unpaid/partially-paid na bill ng vendor na ito, live.']],
+    ['selector' => 'table.data-table', 'nth' => 0,
+        'en' => ['title' => 'Bills table', 'body' => 'Every bill ever recorded against this vendor, with balance and status; click a Bill No. to open it.'],
+        'tl' => ['title' => 'Talahanayan ng Bills', 'body' => 'Bawat bill na naitala laban sa vendor na ito, kasama ang balance at status; i-click ang Bill No. para buksan.']],
+    ['selector' => 'table.data-table', 'nth' => 1,
+        'en' => ['title' => 'Payments table', 'body' => 'Every payment made to this vendor.'],
+        'tl' => ['title' => 'Talahanayan ng Payments', 'body' => 'Bawat payment na ginawa sa vendor na ito.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">
     <div class="card-header">
         <h3><?= e($vendor['name']) ?> <span class="text-muted">(<?= e($vendor['vendor_code']) ?>)</span></h3>
-        <a href="vendor-form.php?id=<?= $id ?>" class="btn btn-outline">Edit</a>
+        <div>
+            <a href="vendors.php" class="btn btn-outline">Back</a>
+            <a href="vendor-form.php?id=<?= $id ?>" class="btn btn-outline">Edit</a>
+        </div>
     </div>
     <div class="form-row">
         <div><span class="text-muted">Contact</span><br><?= e($vendor['contact_person'] ?: '—') ?></div>
@@ -79,5 +93,4 @@ include __DIR__ . '/../../includes/header.php';
     </table>
     </div>
 </div>
-<a href="vendors.php" class="btn btn-outline">Back to Vendors</a>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

@@ -47,6 +47,17 @@ if ($selectedBudget) {
 }
 
 $pageTitle = 'Budget vs Actual Variance';
+$pageHelp = [
+    ['selector' => 'select[name="budget_id"]',
+        'en' => ['title' => 'Budget picker', 'body' => 'Only Approved budgets appear here — Draft budgets don\'t count toward variance.'],
+        'tl' => ['title' => 'Pumili ng Budget', 'body' => 'Ang mga Approved na budget lang ang lalabas dito — hindi kasama ang mga Draft.']],
+    ['selector' => 'select[name="as_of_month"]',
+        'en' => ['title' => 'As Of Month', 'body' => 'Compares year-to-date Budgeted vs. Actual up through that month.'],
+        'tl' => ['title' => 'As Of Month', 'body' => 'Inihahambing ang year-to-date Budgeted kumpara sa Actual hanggang sa buwang iyon.']],
+    ['selector' => 'table.data-table',
+        'en' => ['title' => 'Utilization badge', 'body' => 'Green under 90%, amber 90-100%, red over 100% of the budgeted amount spent/earned so far.'],
+        'tl' => ['title' => 'Utilization badge', 'body' => 'Berde kung mas mababa sa 90%, dilaw sa 90-100%, pula kung lampas 100% ng budgeted amount na nagastos/nakuha.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

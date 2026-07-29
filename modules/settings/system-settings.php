@@ -36,6 +36,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $accounts = $db->query("SELECT id, account_code, account_name FROM coa_accounts WHERE is_active=1 ORDER BY account_code")->fetchAll();
 
 $pageTitle = 'System Settings';
+$pageHelp = [
+    ['selector' => '.card', 'nth' => 0,
+        'en' => ['title' => 'GL Control Accounts', 'body' => 'Which real Chart of Accounts entry the system posts to automatically for AP, AR, Input Tax, Output Tax, and Withholding Tax Payable. Bill/Invoice approval will error until these are set.'],
+        'tl' => ['title' => 'GL Control Accounts', 'body' => 'Kung aling tunay na Chart of Accounts entry ang awtomatikong pinopostan ng sistema para sa AP, AR, Input Tax, Output Tax, at Withholding Tax Payable. Magkakaroon ng error ang pag-approve ng Bill/Invoice hangga\'t hindi ito naka-set.']],
+    ['selector' => '.card', 'nth' => 1,
+        'en' => ['title' => 'Decision Support Thresholds', 'body' => 'The trigger points for the Dashboard\'s automatic risk alerts — e.g. how many days of cash runway counts as "low," or what AP/AR aging % counts as risky.'],
+        'tl' => ['title' => 'Decision Support Thresholds', 'body' => 'Ang mga trigger point para sa awtomatikong risk alerts ng Dashboard — hal. ilang araw ng cash runway ang ituturing na "mababa," o anong AP/AR aging % ang ituturing na mapanganib.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <form method="post">

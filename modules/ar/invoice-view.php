@@ -97,6 +97,26 @@ $lineStmt->execute([$id]);
 $lines = $lineStmt->fetchAll();
 
 $pageTitle = 'Invoice ' . $invoice['invoice_no'];
+$pageHelp = [
+    ['selector' => '.status-stepper, .status-stepper-stopped',
+        'en' => ['title' => 'Stepper at the top', 'body' => 'Shows this invoice\'s stage: Drafted, Approved & Posted, or Fully Received — or Voided if stopped.'],
+        'tl' => ['title' => 'Stepper sa Itaas', 'body' => 'Ipinapakita ang stage ng invoice na ito: Drafted, Approved & Posted, o Fully Received — o Voided kung natigil.']],
+];
+if ($invoice['status'] === 'Draft' && has_permission('ar.approve')) {
+    $pageHelp[] = ['selector' => '.btn-accent',
+        'en' => ['title' => 'Approve & Post', 'body' => 'Books Dr. Accounts Receivable / Cr. Revenue (+ tax). You can\'t approve an invoice you created yourself.'],
+        'tl' => ['title' => 'Approve & Post', 'body' => 'Magbo-book ng Dr. Accounts Receivable / Cr. Revenue (+ tax). Hindi mo puwedeng i-approve ang invoice na ikaw mismo ang gumawa.']];
+}
+if (in_array($invoice['status'], ['Open','PartiallyPaid'], true) && has_permission('ar.approve')) {
+    $pageHelp[] = ['selector' => '.btn-danger',
+        'en' => ['title' => 'Void', 'body' => 'For an Open/PartiallyPaid invoice — books an automatic reversing entry rather than deleting it.'],
+        'tl' => ['title' => 'Void', 'body' => 'Para sa Open/PartiallyPaid na invoice — magbo-book ng awtomatikong reversing entry sa halip na burahin ito.']];
+}
+if ($invoice['journal_entry_id']) {
+    $pageHelp[] = ['selector' => 'a[href*="journal-entry-view.php"]',
+        'en' => ['title' => 'View GL Entry link', 'body' => 'Jumps straight to the journal entry this invoice produced once posted.'],
+        'tl' => ['title' => 'Link ng GL Entry', 'body' => 'Direktang pupunta sa journal entry na nabuo ng invoice na ito nang ma-post.']];
+}
 include __DIR__ . '/../../includes/header.php';
 $eff = display_status($invoice['status'], $invoice['due_date']);
 ?>
@@ -118,6 +138,11 @@ $eff = display_status($invoice['status'], $invoice['due_date']);
             <a href="invoices.php" class="btn btn-outline">Back</a>
         </div>
     </div>
+    <?php
+        $stepIndex = ['Draft' => 0, 'Open' => 1, 'PartiallyPaid' => 1, 'Paid' => 2][$invoice['status']] ?? 0;
+        $stopped = $invoice['status'] === 'Void' ? 'Voided — a reversing entry was booked to the GL' : null;
+        echo render_status_stepper(['1. Drafted by Accountant', '2. Approved & Posted to GL', '3. Fully Received'], $stepIndex, $stopped);
+    ?>
     <div class="form-row">
         <div><span class="text-muted">Customer</span><br><a href="customer-view.php?id=<?= $invoice['customer_id'] ?>"><?= e($invoice['customer_name']) ?></a></div>
         <div><span class="text-muted">Invoice Date</span><br><?= format_date($invoice['invoice_date']) ?></div>

@@ -25,6 +25,17 @@ $netIncomeToDate = $totalRevenue - $totalExpense;
 $totalEquityWithEarnings = $totalEquity + $netIncomeToDate;
 
 $pageTitle = 'Balance Sheet';
+$pageHelp = [
+    ['selector' => 'input[name="as_of"]',
+        'en' => ['title' => 'As Of date', 'body' => 'Every account\'s balance as of this single date (not a range).'],
+        'tl' => ['title' => 'As Of date', 'body' => 'Ang balance ng bawat account sa iisang petsang ito (hindi range).']],
+    ['selector' => 'table.data-table', 'nth' => 2,
+        'en' => ['title' => 'Current Earnings (to date)', 'body' => 'Cumulative Revenue minus Expenses since the start of the ledger — rolled into Equity so the sheet balances.'],
+        'tl' => ['title' => 'Current Earnings (to date)', 'body' => 'Kabuuang Revenue bawas Expenses mula nang magsimula ang ledger — isinasama sa Equity para magbalanse ang sheet.']],
+    ['selector' => '.kpi-card', 'nth' => 2,
+        'en' => ['title' => 'Balance Check card', 'body' => 'Confirms Assets = Liabilities + Equity — should always read "Balanced".'],
+        'tl' => ['title' => 'Balance Check card', 'body' => 'Kinukumpirma na Assets = Liabilities + Equity — dapat laging "Balanced" ang nababasa.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

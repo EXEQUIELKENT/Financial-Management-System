@@ -6,6 +6,15 @@ $db = get_db();
 $remittances = $db->query("SELECT r.*, t.name AS tax_name FROM tax_remittances r JOIN tax_types t ON t.id = r.tax_type_id ORDER BY r.period_end DESC")->fetchAll();
 
 $pageTitle = 'Tax Remittances';
+$pageHelp = [];
+if (has_permission('tax.create')) {
+    $pageHelp[] = ['selector' => 'a[href="remittance-form.php"]',
+        'en' => ['title' => '+ New Remittance', 'body' => 'Pay the government: aggregates every matching Pending tax transaction for a type/direction/period, marks them Remitted, and posts the GL entry.'],
+        'tl' => ['title' => '+ Bagong Remittance', 'body' => 'Pagbabayad sa gobyerno: pinagsasama-sama ang lahat ng tumutugmang Pending na tax transaction para sa isang type/direction/period, minamarkahang Remitted, at nagpo-post ng GL entry.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Table', 'body' => 'Every remittance ever filed, by tax type and period.'],
+    'tl' => ['title' => 'Table', 'body' => 'Lahat ng remittance na na-file na, ayon sa tax type at period.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

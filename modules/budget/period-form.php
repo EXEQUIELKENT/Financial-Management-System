@@ -21,6 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $pageTitle = 'New Budget Period';
+$pageHelp = [
+    ['selector' => 'input[name="name"]',
+        'en' => ['title' => 'Name', 'body' => 'A label like "FY2026" — used everywhere else in the system to identify this period.'],
+        'tl' => ['title' => 'Name', 'body' => 'Isang label tulad ng "FY2026" — ginagamit sa buong sistema para kilalanin ang period na ito.']],
+    ['selector' => 'input[name="start_date"]',
+        'en' => ['title' => 'Start / End Date', 'body' => 'The period\'s date range; budgets created inside it use months 1-12 relative to this range.'],
+        'tl' => ['title' => 'Start / End Date', 'body' => 'Ang date range ng period; ang mga budget na gagawin dito ay gagamit ng buwan 1-12 batay sa range na ito.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:520px;">

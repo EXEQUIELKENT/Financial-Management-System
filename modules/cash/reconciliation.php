@@ -6,6 +6,15 @@ $db = get_db();
 $recons = $db->query("SELECT r.*, ca.account_name FROM bank_reconciliations r JOIN cash_accounts ca ON ca.id = r.cash_account_id ORDER BY r.statement_date DESC")->fetchAll();
 
 $pageTitle = 'Bank Reconciliation';
+$pageHelp = [];
+if (has_permission('cash.create')) {
+    $pageHelp[] = ['selector' => 'a[href="reconciliation-form.php"]',
+        'en' => ['title' => '+ New Reconciliation', 'body' => 'Starts matching an account\'s books against a real bank statement as of a given date.'],
+        'tl' => ['title' => '+ Bagong Reconciliation', 'body' => 'Nagsisimula ng pagtutugma ng mga libro ng account laban sa aktwal na bank statement sa isang partikular na petsa.']];
+}
+$pageHelp[] = ['selector' => 'table.data-table',
+    'en' => ['title' => 'Open', 'body' => 'Continue adding reconciling items, or view a completed reconciliation.'],
+    'tl' => ['title' => 'Open', 'body' => 'Ipagpatuloy ang pagdaragdag ng reconciling items, o tingnan ang isang tapos nang reconciliation.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card">

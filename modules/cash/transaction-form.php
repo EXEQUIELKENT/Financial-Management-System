@@ -54,6 +54,17 @@ $cashAccounts = $db->query("SELECT id, account_name, current_balance FROM cash_a
 $offsetAccounts = $db->query("SELECT id, account_code, account_name FROM coa_accounts WHERE is_active=1 AND account_type IN ('Expense','Revenue','Liability','Asset') ORDER BY account_code")->fetchAll();
 
 $pageTitle = 'New Cash Transaction';
+$pageHelp = [
+    ['selector' => 'select[name="type"]',
+        'en' => ['title' => 'Type', 'body' => 'Deposit adds money in; Withdrawal takes money out of the selected cash account.'],
+        'tl' => ['title' => 'Type', 'body' => 'Ang Deposit ay nagdaragdag ng pera; ang Withdrawal ay kumukuha ng pera mula sa napiling cash account.']],
+    ['selector' => 'select[name="offset_account_id"]',
+        'en' => ['title' => 'Offset Account', 'body' => 'The other side of the entry — e.g. Bank Charges Expense for a fee, or Interest Income for interest earned.'],
+        'tl' => ['title' => 'Offset Account', 'body' => 'Ang kabilang panig ng entry — hal. Bank Charges Expense para sa singil, o Interest Income para sa kinitang interes.']],
+    ['selector' => 'select[name="cash_flow_category"]',
+        'en' => ['title' => 'Cash Flow Category', 'body' => 'Operating, Investing, or Financing — which section of the Cash Flow Statement this appears under.'],
+        'tl' => ['title' => 'Cash Flow Category', 'body' => 'Operating, Investing, o Financing — kung aling bahagi ng Cash Flow Statement ito lalabas.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:640px;">

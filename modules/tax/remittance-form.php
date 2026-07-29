@@ -66,6 +66,17 @@ $taxTypes = $db->query("SELECT id, name FROM tax_types WHERE is_active=1 ORDER B
 $cashAccounts = $db->query("SELECT id, account_name, current_balance FROM cash_accounts WHERE status='Active' ORDER BY account_name")->fetchAll();
 
 $pageTitle = 'New Tax Remittance';
+$pageHelp = [
+    ['selector' => 'select[name="direction"]',
+        'en' => ['title' => 'Direction', 'body' => 'Output = VAT collected on sales; Withholding = tax withheld from vendor payments. Input tax (VAT paid on purchases) is never remitted, only claimed as credit.'],
+        'tl' => ['title' => 'Direction', 'body' => 'Output = VAT na nakolekta sa benta; Withholding = buwis na inihold mula sa bayad sa vendor. Ang Input tax (VAT na binayaran sa pagbili) ay hindi kailanman rini-remit, kredito lang ito.']],
+    ['selector' => 'input[name="period_start"]',
+        'en' => ['title' => 'Period Start / End', 'body' => 'Only Pending tax transactions dated within this range, matching the type and direction, get aggregated.'],
+        'tl' => ['title' => 'Period Start / End', 'body' => 'Ang mga Pending na tax transaction lang na nasa loob ng range na ito, tugma sa type at direction, ang pagsasamahin.']],
+    ['selector' => 'select[name="cash_account_id"]',
+        'en' => ['title' => 'Pay From', 'body' => 'The cash/bank account the remittance amount is deducted from.'],
+        'tl' => ['title' => 'Pay From', 'body' => 'Ang cash/bank account kung saan ibabawas ang halaga ng remittance.']],
+];
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card" style="max-width:640px;">

@@ -33,7 +33,15 @@ p { margin: 0 0 var(--space-3); }
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
+    /* Thin, themed scrollbar instead of the bulky default OS scrollbar (Firefox) */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
 }
+.sidebar-inner::-webkit-scrollbar { width: 6px; }
+.sidebar-inner::-webkit-scrollbar-track { background: transparent; }
+.sidebar-inner::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 999px; }
+.sidebar-inner::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.45); }
+.sidebar-inner::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
 .sidebar-brand {
     display: flex; align-items: center; gap: var(--space-3);
     padding: var(--space-5) var(--space-4);
@@ -51,11 +59,49 @@ p { margin: 0 0 var(--space-3); }
     font-size: 13.5px;
     white-space: nowrap;
     border-left: 3px solid transparent;
+    transition: background-color 0.2s ease, border-left-color 0.2s ease;
 }
 .sidebar-nav a:hover { background: rgba(255,255,255,0.08); text-decoration: none; }
 .sidebar-nav a.active { background: rgba(255,255,255,0.15); border-left-color: var(--color-accent); font-weight: 600; }
-.sidebar-icon { width: 18px; text-align: center; flex-shrink: 0; }
+/* Icon badge gets its own filled highlight when active -- this is what still reads
+   clearly as "you are here" in the collapsed icon-only rail, where there's no
+   label text or room for the row highlight to be very noticeable. */
+.sidebar-icon {
+    width: 26px; height: 20px; min-width: 26px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; text-align: center; flex-shrink: 0;
+    background: rgba(255,255,255,0.08);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+.sidebar-nav a:hover .sidebar-icon { background: rgba(255,255,255,0.18); }
+.sidebar-nav a.active .sidebar-icon { background: var(--color-accent); color: #fff; }
 .sidebar-label { transition: opacity 0.15s ease; }
+
+/* Sub-navigation: the other pages inside the currently-open module (e.g. Cash
+   Management's Accounts/Transactions/Transfers/Reconciliation), indented under
+   its parent link. Only rendered for whichever module you're currently inside,
+   so it always gives one-click access to every sibling page without the
+   sidebar growing to show every module's sub-pages at once. */
+.sidebar-subnav {
+    display: flex; flex-direction: column;
+    padding: 2px 0 6px 0;
+    animation: sidebarSubnavIn 0.2s ease both;
+}
+.sidebar-subnav a {
+    padding: 7px var(--space-4) 7px 48px;
+    font-size: 12.5px;
+    color: rgba(255,255,255,0.72);
+    border-left: 3px solid transparent;
+    white-space: nowrap;
+}
+.sidebar-subnav a:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.95); }
+.sidebar-subnav a.active { background: rgba(255,255,255,0.1); border-left-color: var(--color-accent); color: #fff; font-weight: 600; }
+@keyframes sidebarSubnavIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+/* Collapsed rail has no room for indented sub-labels -- expand the sidebar to see them. */
+html.sidebar-collapsed .sidebar-subnav { display: none; }
 
 .sidebar-collapse-btn {
     position: absolute; top: 22px; right: -13px; width: 26px; height: 26px;
@@ -100,7 +146,24 @@ html.sidebar-collapsed .sidebar-collapse-btn .chevron { transform: rotate(180deg
     padding: 0 var(--space-5);
     position: sticky; top: 0; z-index: 10;
 }
-.topbar-title { font-size: 18px; font-weight: 600; }
+.topbar-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.page-help-btn {
+    width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--color-primary);
+    background: transparent; color: var(--color-primary); font-size: 12px; font-weight: 700;
+    cursor: pointer; line-height: 1; padding: 0; flex-shrink: 0;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+.page-help-btn:hover { background: var(--color-primary); color: #fff; }
+
+/* ---------- Per-page Guide: language switch inside the shared tour tooltip ---------- */
+.pg-lang-switch { display: flex; gap: 6px; margin-bottom: var(--space-2); }
+.pg-lang-btn {
+    font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--color-border); background: transparent; color: var(--color-text-secondary);
+    cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.pg-lang-btn:hover { border-color: var(--color-primary); }
+.pg-lang-btn.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
 .topbar-user { display: flex; align-items: center; gap: var(--space-3); }
 .topbar-user .role-pill { font-size: 11px; padding: 2px 10px; border-radius: 999px; background: var(--color-border); color: var(--color-text-secondary); }
 .topbar-clock { font-size: 12.5px; color: var(--color-text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -182,6 +245,86 @@ table.data-table td.num, table.data-table th.num { text-align: right; }
 .badge-pending { background: #FFF4E5; color: #F2994A; }
 .badge-void { background: #F1F1F1; color: #9CA3AF; }
 
+/* ---------- "You are here" status stepper (document lifecycle) ---------- */
+.status-stepper { display: flex; align-items: flex-start; margin: 4px 0 24px; max-width: 560px; }
+.status-step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+.status-step:not(:last-child)::after {
+    content: ''; position: absolute; top: 14px; left: 50%; width: 100%; height: 2px;
+    background: var(--color-border); z-index: 1; transition: background-color 0.3s ease;
+}
+.status-step.done:not(:last-child)::after { background: var(--color-accent); }
+.status-step-dot {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--color-border);
+    color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; z-index: 2; position: relative;
+    transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+.status-step-label { margin-top: 7px; font-size: 11.5px; color: var(--color-text-secondary); text-align: center; padding: 0 4px; }
+.status-step.done .status-step-dot { background: var(--color-accent); color: #fff; }
+.status-step.active .status-step-dot { background: var(--color-primary); color: #fff; box-shadow: 0 0 0 4px rgba(47,128,237,0.2); }
+.status-step.active .status-step-label { color: var(--color-text); font-weight: 600; }
+.status-stepper-stopped {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; margin: 4px 0 24px;
+    border-radius: 999px; background: var(--alert-critical-bg); color: var(--alert-text); font-size: 13px; font-weight: 600;
+}
+
+/* ---------- Getting Started: module -> GL -> reports flow diagram ---------- */
+.flow-diagram { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; }
+.flow-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.flow-box {
+    background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+    padding: 10px 16px; font-size: 12.5px; font-weight: 600; text-align: center; color: var(--color-text);
+}
+.flow-box.hub { background: var(--color-primary); color: #fff; border-color: var(--color-primary); font-size: 15px; padding: 14px 26px; }
+.flow-box.hub-alt { background: var(--color-accent); color: #fff; border-color: var(--color-accent); font-size: 13.5px; padding: 12px 20px; }
+.flow-arrow-down { color: var(--color-text-secondary); font-size: 12.5px; padding: 6px 0; text-align: center; }
+
+/* ---------- Guided tour controls (top of Getting Started page) ---------- */
+.tour-controls-bar { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.tour-lang-choice, .tour-voice-choice { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.tour-lang-choice input, .tour-voice-choice input { width: auto; margin: 0; }
+
+/* ---------- Guided tour overlay: spotlight + tooltip ---------- */
+body.tour-active { overflow: hidden; }
+.tour-spotlight {
+    position: fixed; z-index: 9998; border-radius: var(--radius-md);
+    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.65), 0 0 0 3px var(--color-primary);
+    pointer-events: none;
+    transition: top 0.35s cubic-bezier(.4,0,.2,1), left 0.35s cubic-bezier(.4,0,.2,1),
+                width 0.35s cubic-bezier(.4,0,.2,1), height 0.35s cubic-bezier(.4,0,.2,1);
+}
+.tour-exit-pin {
+    position: fixed; top: 18px; right: 18px; z-index: 10000;
+    background: rgba(15, 23, 42, 0.85); color: #fff; border: none;
+    border-radius: 999px; padding: 8px 16px; font-size: 12.5px; font-weight: 600;
+    font-family: var(--font-family); cursor: pointer; box-shadow: var(--shadow-lg);
+}
+.tour-exit-pin:hover { background: var(--color-danger); }
+.tour-tooltip {
+    position: fixed; z-index: 9999; max-width: 360px; background: var(--color-card);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: var(--space-4) var(--space-5);
+    animation: fadeInUp 0.3s ease both;
+    transition: top 0.35s cubic-bezier(.4,0,.2,1), left 0.35s cubic-bezier(.4,0,.2,1);
+}
+/* While the user is actively dragging the tooltip, it must follow the cursor 1:1 --
+   the step-to-step transition above would otherwise make it lag behind. */
+.tour-tooltip.dragging { transition: none; box-shadow: var(--shadow-lg), 0 0 0 2px var(--color-primary); }
+.tour-tooltip-header {
+    display: flex; align-items: center; gap: 6px; margin: calc(var(--space-4) * -1) calc(var(--space-5) * -1) var(--space-2);
+    padding: 10px var(--space-5); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    cursor: move; user-select: none; background: var(--color-bg);
+}
+.tour-tooltip-header span { font-size: 11.5px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.tour-tooltip-header .tour-drag-handle { flex: 1; letter-spacing: 2px; opacity: 0.5; font-size: 13px; }
+.tour-close { background: none; border: none; cursor: pointer; color: var(--color-text-secondary); font-size: 15px; padding: 2px 6px; line-height: 1; }
+.tour-close:hover { color: var(--color-danger); }
+.tour-tooltip h4 { margin: 0 0 8px; font-size: 15px; }
+.tour-tooltip p { font-size: 13px; line-height: 1.6; color: var(--color-text); margin: 0 0 var(--space-3); }
+.tour-tooltip-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (max-width: 900px) {
+    .tour-tooltip { max-width: calc(100vw - 32px); left: 16px !important; }
+}
+
 /* Alert severity backgrounds/text swap to dark-desaturated tints in dark mode via the
    --alert-* custom properties defined in variables.css, instead of staying pale/white
    (which was unreadable and jarring against a dark page). */
@@ -257,6 +400,7 @@ table.data-table td.num, table.data-table th.num { text-align: right; }
 .fade-in-up { animation: fadeInUp 0.5s cubic-bezier(.2,.7,.3,1) both; }
 @media (prefers-reduced-motion: reduce) {
     .fade-in-up { animation: none; }
+    .sidebar-subnav { animation: none; }
     .sidebar, .main-area, .sidebar-label, .theme-switch-knob, .theme-switch-icon, .sidebar-collapse-btn .chevron { transition: none !important; }
 }
 
