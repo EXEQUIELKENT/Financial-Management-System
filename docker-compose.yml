@@ -1,0 +1,52 @@
+# Local verification of the production image, plus the MySQL it needs.
+#
+#   docker compose up --build      -> app on http://localhost:8080
+#   docker compose exec app php scripts/migrate.php --seed
+#
+# The hosted deployment builds the same Dockerfile; only the database connection
+# details differ, and those come from the environment either way.
+
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - "8080:80"
+    environment:
+      APP_ENV: production
+      APP_BASE_URL: ""
+      PORT: "80"
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: travelcore_fms
+      DB_USER: travelcore
+      DB_PASS: travelcore
+      DB_WAIT: "true"
+      # First boot creates the schema and demo data; both are no-ops afterwards.
+      DB_AUTO_MIGRATE: "true"
+      DB_AUTO_SEED: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: travelcore_fms
+      MYSQL_USER: travelcore
+      MYSQL_PASSWORD: travelcore
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  db-data:

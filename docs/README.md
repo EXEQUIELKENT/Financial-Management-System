@@ -11,12 +11,19 @@ Plain PHP + MySQL (PDO), no framework required. Built to run directly on XAMPP.
    - Open phpMyAdmin (`http://localhost/phpmyadmin`).
    - Import `sql/schema.sql` (it creates the `travelcore_fms` database and all tables, plus roles/permissions/default settings).
    - Or via CLI: `mysql -u root < sql/schema.sql`
-3. **Check `config/config.php`** if your MySQL credentials differ from the XAMPP defaults (`root` / no password).
+3. **Check `config/config.php`** if your MySQL credentials differ from the XAMPP defaults (`root` / no password). Every setting there also reads from an environment variable first (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, ...), so you can override them without editing the file — see [`.env.example`](../.env.example).
 4. **Seed demo data** (recommended for first run): open
    `http://localhost/Financial-Management-System/sql/seed.php`
    in your browser. This creates 4 demo users, a chart of accounts, vendors/customers, an approved budget, and ~7 months of realistic AR/AP/cash activity — all posted through the same ledger engine the app uses, so the books balance from the start.
    - Re-run with `?reset=1` to wipe and regenerate business data.
 5. **Log in** at `http://localhost/Financial-Management-System/login.php`.
+
+### Deploying to a server
+
+The steps above are for local XAMPP. To run this on hosting instead, see
+**[DEPLOYMENT.md](DEPLOYMENT.md)** — the repository ships a `Dockerfile`, a health
+endpoint at `/health`, and `scripts/migrate.php` to create the schema on a fresh
+database. `docker compose up --build` runs the whole stack locally on port 8080.
 
 > **Note:** the URLs above assume you cloned this repo into `htdocs` using its default folder name, `Financial-Management-System` (that's the name GitHub gives it — GitHub doesn't allow spaces in repo names). If you placed it under a different folder name, substitute that name in the URL instead — the app detects its own base path automatically, so it works under any folder name without any code changes.
 

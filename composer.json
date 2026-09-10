@@ -1,0 +1,40 @@
+{
+    "name": "exequielkent/financial-management-system",
+    "description": "Intelligent Integrated Financial Management System with AI Financial Assistance, Predictive Analysis, and Decision Support for Travel and Tour Agencies",
+    "type": "project",
+    "license": "proprietary",
+    "keywords": ["php", "apache", "mysql", "finance", "erp", "accounting"],
+    "require": {
+        "php": ">=8.1",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-json": "*"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.2.0"
+        }
+    },
+    "autoload": {
+        "classmap": [
+            "includes/"
+        ]
+    },
+    "scripts": {
+        "build": [
+            "@composer install --no-dev --optimize-autoloader --no-interaction --no-progress"
+        ],
+        "start": "php -S 0.0.0.0:${PORT:-8080} -t .",
+        "migrate": "php scripts/migrate.php",
+        "seed": "php sql/seed.php",
+        "lint": "find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l"
+    },
+    "scripts-descriptions": {
+        "build": "Production build: install dependencies and generate the optimized autoloader.",
+        "migrate": "Create the database schema on a fresh database (idempotent).",
+        "seed": "Load demo data (users, chart of accounts, ~7 months of transactions).",
+        "lint": "Syntax-check every PHP file in the project."
+    }
+}

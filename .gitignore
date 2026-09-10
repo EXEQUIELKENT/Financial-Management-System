@@ -1,0 +1,8 @@
+
+# Local environment overrides -- never commit real credentials.
+.env
+.env.local
+.env.*.local
+
+# Composer
+/vendor/

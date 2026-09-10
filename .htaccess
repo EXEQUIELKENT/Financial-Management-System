@@ -1,0 +1,46 @@
+# Application-level Apache rules.
+#
+# The container image also applies docker/apache-vhost.conf, but these rules live with
+# the code so the same protections apply on XAMPP and on any plain Apache host.
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Platform health probes conventionally hit /health, with no extension.
+    RewriteRule ^health/?$ health.php [L]
+
+    # Server-side-only directories: PHP includes, DB credentials, CLI scripts,
+    # container config and Composer's vendor tree are never valid request targets.
+    RewriteRule ^(config|includes|scripts|docker|vendor)/ - [F,L]
+
+    # Dotfiles (.git, .env, editor state) must not be downloadable.
+    RewriteRule (^|/)\. - [F,L]
+</IfModule>
+
+<IfModule mod_authz_core.c>
+    # Raw SQL dumps, logs and lockfiles are readable text if Apache serves them.
+    <FilesMatch "\.(sql|log|sh|lock|ini)$">
+        Require all denied
+    </FilesMatch>
+    <FilesMatch "^(composer\.json|Dockerfile|\.php-version|\.gitattributes)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    # Every CSS/JS tag carries a ?v=<mtime> cache buster (see asset_url()), so a long
+    # max-age here cannot serve a stale file after a deploy.
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/svg+xml "access plus 30 days"
+</IfModule>

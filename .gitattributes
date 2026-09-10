@@ -1,2 +1,13 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# These are consumed by Linux tooling inside the container image and must keep LF
+# no matter what platform they were committed from -- a CRLF line ending turns the
+# shebang into "/bin/sh^M" and the container fails to start.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.conf          text eol=lf
+.htaccess       text eol=lf
+.dockerignore   text eol=lf
+.env.example    text eol=lf
+*.sql           text eol=lf

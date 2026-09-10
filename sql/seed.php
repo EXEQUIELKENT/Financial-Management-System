@@ -12,6 +12,14 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/Ledger.php';
 
+// Demo data generation is a development convenience. Over HTTP in production it stays
+// closed: ?reset=1 truncates every business table, so an open endpoint would let anyone
+// wipe the books. Seed a production database from the CLI (or DB_AUTO_SEED=true) instead.
+if (PHP_SAPI !== 'cli' && APP_ENV === 'production') {
+    http_response_code(404);
+    exit("Not found.\n");
+}
+
 $db = get_db();
 $isCli = php_sapi_name() === 'cli';
 function out(string $msg) { global $isCli; echo $isCli ? $msg . "\n" : $msg . "<br>\n"; }

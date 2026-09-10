@@ -62,10 +62,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <button type="submit" class="btn btn-primary btn-block">Sign In</button>
         </form>
 
+        <?php if (APP_ENV !== 'production'): // Never publish demo credentials on a public URL. ?>
         <div class="login-demo">
             <strong>Demo accounts</strong> (after running <code>sql/seed.php</code>):<br>
             admin / accountant / approver / auditor — password: <code>Passw0rd!</code>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 </body>
