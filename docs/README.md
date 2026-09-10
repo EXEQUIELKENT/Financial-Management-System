@@ -13,10 +13,12 @@ Plain PHP + MySQL (PDO), no framework required. Built to run directly on XAMPP.
    - Or via CLI: `mysql -u root < sql/schema.sql`
 3. **Check `config/config.php`** if your MySQL credentials differ from the XAMPP defaults (`root` / no password).
 4. **Seed demo data** (recommended for first run): open
-   `http://localhost/Financial%20Management%20System/sql/seed.php`
+   `http://localhost/Financial-Management-System/sql/seed.php`
    in your browser. This creates 4 demo users, a chart of accounts, vendors/customers, an approved budget, and ~7 months of realistic AR/AP/cash activity — all posted through the same ledger engine the app uses, so the books balance from the start.
    - Re-run with `?reset=1` to wipe and regenerate business data.
-5. **Log in** at `http://localhost/Financial%20Management%20System/login.php`.
+5. **Log in** at `http://localhost/Financial-Management-System/login.php`.
+
+> **Note:** the URLs above assume you cloned this repo into `htdocs` using its default folder name, `Financial-Management-System` (that's the name GitHub gives it — GitHub doesn't allow spaces in repo names). If you placed it under a different folder name, substitute that name in the URL instead — the app detects its own base path automatically, so it works under any folder name without any code changes.
 
 ### Demo accounts (after seeding)
 

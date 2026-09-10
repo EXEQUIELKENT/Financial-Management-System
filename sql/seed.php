@@ -1,7 +1,7 @@
 <?php
 /**
- * One-time demo data generator. Run once via browser (http://localhost/Financial%20Management%20System/sql/seed.php)
- * or CLI (php seed.php) AFTER importing schema.sql. Pass ?reset=1 to wipe and
+ * One-time demo data generator. Run once via browser (http://localhost/Financial-Management-System/sql/seed.php,
+ * substituting your actual htdocs folder name) or CLI (php seed.php) AFTER importing schema.sql. Pass ?reset=1 to wipe and
  * regenerate all business data (roles/permissions from schema.sql are kept).
  *
  * Every transaction here goes through the same post_journal_entry() engine

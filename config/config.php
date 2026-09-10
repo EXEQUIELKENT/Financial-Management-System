@@ -4,10 +4,10 @@ define('APP_FULL_TITLE', 'Design and Development of an Intelligent Integrated Fi
 define('APP_SHORT_NAME', 'TravelCore FMS');
 define('APP_TAGLINE', 'Travel & Tours');
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'travelcore_fms');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_NAME', getenv('DB_NAME') ?: 'travelcore_fms');
+define('DB_USER', getenv('DB_USER') ?: 'root');
+define('DB_PASS', getenv('DB_PASS') ?: '');
 define('DB_CHARSET', 'utf8mb4');
 
 date_default_timezone_set('Asia/Manila');
