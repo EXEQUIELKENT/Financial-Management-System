@@ -1,12 +1,11 @@
 # Financial Management System - production image.
 # Plain PHP + Apache serving the application from the document root.
 #
-# This build deliberately depends on nothing but the base image: no apt layer, no
-# Composer, no second image pull, no package registry. The application has no
-# third-party runtime dependencies, so each of those was a network round-trip that
-# could fail the build without buying anything. composer.json stays in the repository
-# as an accurate manifest of the PHP version and extensions required, but nothing in
-# the image needs to run Composer to produce it.
+# Build steps are kept few and cheap, because the platform's build step times out:
+# PHP extensions come from prebuilt binaries rather than a from-source compile, and
+# there is no Composer step at all, since the application has no third-party PHP
+# dependencies. composer.json stays in the repository as an accurate manifest of the
+# PHP version and extensions required, but nothing here needs to run Composer.
 
 FROM php:8.2-apache
 
@@ -24,6 +23,26 @@ ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/relea
 RUN set -eux; \
 install-php-extensions pdo_mysql opcache; \
 a2enmod rewrite headers remoteip expires
+
+# Embedded MariaDB, started only when DB_EMBEDDED=true at runtime (docker/entrypoint.sh).
+#
+# This exists because HostForge's managed-database provisioning is stuck, and the
+# platform deploys a single service -- it will not run this repository's
+# docker-compose.yml. Running the database inside the application container is a
+# workaround for that platform limitation, NOT a recommended topology: the data lives
+# on the container filesystem, so it must be backed by a persistent volume mounted at
+# /var/lib/mysql or every redeploy starts from an empty ledger. Move back to a separate
+# database service once one is available.
+#
+# These are prebuilt packages, so this costs seconds -- it is not the from-source
+# compile that was timing the build out.
+RUN set -eux; \
+    echo 'exit 101' > /usr/sbin/policy-rc.d; \
+    chmod +x /usr/sbin/policy-rc.d; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        mariadb-server; \
+    rm -rf /var/lib/apt/lists/*
 
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 COPY docker/apache-vhost.conf /etc/apache2/sites-available/000-default.conf

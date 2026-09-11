@@ -36,53 +36,95 @@ echo "Build is defined by the Dockerfile"
 
 ## 2. The database
 
-The attached managed service is **MariaDB**, and the platform currently reports it as
-**failed**. Nothing in this repository can fix that - reprovision or restart the
-service from the HostForge console first. The application cannot start without it.
+HostForge's managed-database provisioning is currently stuck, and the platform deploys
+a **single service** - it will not run this repository's `docker-compose.yml`
+("HostForge deploys a single service and does not run compose files"). Until a managed
+database is available again, the app can run MariaDB **inside its own container**.
 
-MariaDB is fully supported: `sql/schema.sql` is plain InnoDB with
+MariaDB is fully supported either way: `sql/schema.sql` is plain InnoDB with
 `utf8mb4_unicode_ci` and uses no MySQL-8-only syntax (no window functions, CTEs, JSON
-columns, generated columns or MySQL-8 default collations), so it runs unchanged on
-either engine.
+columns, generated columns or MySQL-8 default collations).
 
-Once the service is healthy, set these under **Environment**:
+### Option A - embedded database (the current workaround)
 
-| Variable | Example | Notes |
-|---|---|---|
-| `DB_HOST` | *(from the service)* | MariaDB hostname |
-| `DB_PORT` | `3306` | |
-| `DB_NAME` | `travelcore_fms` | Any name; no longer has to match `schema.sql` |
-| `DB_USER` | `travelcore` | |
-| `DB_PASS` | *(secret)* | Store as a secret, not plain text |
-| `APP_ENV` | `production` | Hides PHP errors and closes the demo-data endpoint |
-| `DB_AUTO_MIGRATE` | `true` | Creates the schema on first boot; a no-op afterwards |
-| `DB_AUTO_SEED` | `false` | See the warning below |
+Set `DB_EMBEDDED=true` and the entrypoint starts a local MariaDB, provisions
+`DB_NAME`/`DB_USER`/`DB_PASS` on it, then runs the normal migrate/seed steps.
 
-Optional: `APP_BASE_URL` (leave unset - auto-detected), `APP_TIMEZONE`,
-`IDLE_TIMEOUT_SECONDS`, `DB_WAIT_SECONDS`. Full list with defaults in
+| Variable | Value |
+|---|---|
+| `DB_EMBEDDED` | `true` |
+| `DB_HOST` | `127.0.0.1` |
+| `DB_PORT` | `3306` |
+| `DB_NAME` | `travelcore_fms` |
+| `DB_USER` | `travelcore` |
+| `DB_PASS` | *(choose one; stored as a secret)* |
+| `APP_ENV` | `production` |
+| `DB_AUTO_MIGRATE` | `true` |
+| `DB_AUTO_SEED` | `true` for a demo, `false` for real data |
+
+> ### Read this before using it for anything real
+>
+> **The database lives on the container filesystem.** Mount a persistent volume at
+> `/var/lib/mysql`, or **every redeploy starts from an empty ledger** - the container
+> filesystem is discarded when the container is replaced. This matters more here than
+> in most apps: the general ledger is the system of record.
+>
+> Also note that this is one container running two services. It rules out autoscaling
+> entirely (see section 7), it means a database restart takes the web app down with it,
+> and backups are your responsibility.
+>
+> This is a workaround for a platform outage, not a target architecture. Move back to
+> Option B once HostForge's database service works.
+
+The entrypoint shuts MariaDB down cleanly when the platform stops the container, so a
+redeploy does not leave InnoDB to crash-recover on the next boot.
+
+### Option B - separate database service (preferred)
+
+Point the same variables at a real database and leave `DB_EMBEDDED` unset:
+
+| Variable | Example |
+|---|---|
+| `DB_HOST` | *(hostname from the service)* |
+| `DB_PORT` | `3306` |
+| `DB_NAME` | `travelcore_fms` |
+| `DB_USER` | `travelcore` |
+| `DB_PASS` | *(secret)* |
+
+Nothing else changes - `DB_AUTO_MIGRATE=true` creates the schema on either.
+
+Optional everywhere: `APP_BASE_URL` (leave unset - auto-detected), `APP_TIMEZONE`,
+`IDLE_TIMEOUT_SECONDS`, `DB_WAIT_SECONDS`, `DB_EMBEDDED_BUFFER_POOL`. Full list in
 [`.env.example`](../.env.example).
 
-> **Do not set `DB_AUTO_SEED=true` on a deployment that will hold real data.**
-> The demo data ships four accounts whose password (`Passw0rd!`) is published in
-> this repository. It is fine for a demo URL; it is an open door on anything else.
+> **`DB_AUTO_SEED=true` publishes a known admin password.** The demo data ships four
+> accounts whose password (`Passw0rd!`) is in this repository. Fine for a demo URL; an
+> open door on anything holding real data. Change or delete them after first login.
 
-## 3. What the image does and does not need
+## 3. Build cost
 
-The build depends on **nothing but the base image**. There is no apt layer, no
-Composer step, no second image pull and no package-registry access, because the
-application has no third-party runtime dependencies. If a build still fails, the
-cause is in the platform's build environment or its build command - not in a
-dependency download.
+The original build failed by timing out: compiling opcache from source was taking
+over 20 minutes. Extensions now come from prebuilt binaries via
+`mlocati/docker-php-extension-installer`, which takes seconds.
 
-At runtime the container needs exactly one thing: a reachable MariaDB/MySQL.
+There is no Composer step - the application has no third-party PHP dependencies, so
+`composer install` would install nothing. The one `apt-get` layer installs
+`mariadb-server` for the embedded-database workaround; those are prebuilt packages and
+cost seconds, not the from-source compile that caused the timeout.
 
 ## 4. First deploy
 
-1. Confirm the MariaDB service is healthy.
-2. Set the environment variables above, with `DB_AUTO_MIGRATE=true`.
-3. Set the health check path to `/health`.
-4. Deploy. On boot the container waits for the database (up to `DB_WAIT_SECONDS`,
-   default 45), creates the 39 tables from `sql/schema.sql`, then starts Apache.
+1. Set the environment variables from section 2 (Option A or B), with
+   `DB_AUTO_MIGRATE=true`.
+2. Set the health check path to `/health`.
+3. With `DB_EMBEDDED=true`, attach a persistent volume at `/var/lib/mysql` unless you
+   are happy to lose the data on every redeploy.
+4. Deploy. On boot the container starts the embedded database if enabled, waits for the
+   database (up to `DB_WAIT_SECONDS`, default 45), creates the 39 tables from
+   `sql/schema.sql`, seeds if asked, then starts Apache.
+
+The container logs every step with a `[entrypoint]` prefix, so the boot sequence is
+visible in the platform's log viewer.
 
 With shell access you can do the same by hand and skip `DB_AUTO_MIGRATE`:
 
@@ -126,11 +168,16 @@ run comes up with the schema and demo data already in place.
 
 ## 7. Scaling and SSL
 
-**Do not enable autoscaling as it stands.** Sessions are stored on the container's
-local disk, so a second replica would sign users out at random as requests land on
-different instances, and a restart signs everyone out. Single replica is the
-supported configuration. Moving sessions into the database would lift that
-restriction; it is not implemented.
+**Do not enable autoscaling as it stands.** Two separate things rule it out:
+
+- Sessions are stored on the container's local disk, so a second replica would sign
+  users out at random as requests land on different instances. Moving sessions into
+  the database would lift this; it is not implemented.
+- With `DB_EMBEDDED=true`, each replica would run its **own private database**. Two
+  replicas means two divergent sets of books. This is not a degraded experience, it is
+  data corruption.
+
+Single replica is the supported configuration.
 
 **SSL**: a certificate is normally issued only after a custom domain resolves to the
 application *and* a release has succeeded. Expect the SSL warning to clear once the
@@ -158,6 +205,12 @@ first deploy completes; if it does not, check the domain's DNS records.
   travelcore_fms`, which cannot work on a managed database; the script strips those.
 - **`scripts/healthcheck.php`** - the container's own liveness probe, over a plain
   socket so the image needs no curl.
+- **`scripts/embedded-db-bootstrap.php`** - creates the database and user on the
+  embedded MariaDB. In PHP rather than shell so identifiers and passwords are quoted
+  properly instead of being escaped through a shell heredoc.
+- **`docker/entrypoint.sh`** supervises both processes when the embedded database is
+  on, forwarding the platform's stop signal to Apache and then shutting MariaDB down
+  cleanly; with an external database it still `exec`s Apache as PID 1.
 - **`config/config.php`** - every deployment value reads from the environment, and
   `BASE_URL` is correct at a domain root. It previously evaluated to `/` there, so
   every link rendered as `//modules/...`, which a browser reads as the host
