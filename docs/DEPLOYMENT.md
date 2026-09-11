@@ -103,14 +103,25 @@ Optional everywhere: `APP_BASE_URL` (leave unset - auto-detected), `APP_TIMEZONE
 
 ## 3. Build cost
 
-The original build failed by timing out: compiling opcache from source was taking
-over 20 minutes. Extensions now come from prebuilt binaries via
-`mlocati/docker-php-extension-installer`, which takes seconds.
+HostForge kills a build at 20 minutes, and this project has hit that cap twice:
+
+1. **Compiling PHP extensions from source.** `docker-php-ext-install opcache` alone ran
+   past 20 minutes. Extensions now come from prebuilt binaries via
+   `mlocati/docker-php-extension-installer`.
+2. **Installing the full `mariadb-server` package.** It pulls in Galera replication,
+   systemd integration, init scripts, logrotate and the complete client suite. The image
+   now installs only `mariadb-server-core` (which provides `mariadbd`,
+   `mariadb-install-db` and the bootstrap SQL) and `mariadb-client-core` (which provides
+   `my_print_defaults`, without which `mariadb-install-db` aborts). Docs and man pages
+   are excluded from extraction.
 
 There is no Composer step - the application has no third-party PHP dependencies, so
-`composer install` would install nothing. The one `apt-get` layer installs
-`mariadb-server` for the embedded-database workaround; those are prebuilt packages and
-cost seconds, not the from-source compile that caused the timeout.
+`composer install` would install nothing.
+
+If a future change puts the build back over the cap, the next thing to cut is `opcache`.
+It is a performance optimization, not a requirement: the app runs correctly without it,
+and the `opcache.*` settings in `docker/php.ini` are simply ignored when the extension
+is absent. Dropping it from the `install-php-extensions` line is a one-word change.
 
 ## 4. First deploy
 

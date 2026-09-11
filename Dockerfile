@@ -34,15 +34,34 @@ a2enmod rewrite headers remoteip expires
 # /var/lib/mysql or every redeploy starts from an empty ledger. Move back to a separate
 # database service once one is available.
 #
-# These are prebuilt packages, so this costs seconds -- it is not the from-source
-# compile that was timing the build out.
+# Only the two -core packages are installed. The full mariadb-server package also drags
+# in Galera replication, systemd integration, init scripts, logrotate and the complete
+# client suite -- none of which this container uses, and that weight is what pushed the
+# build past the platform's 20-minute cap.
+#
+# The split is not obvious, so for the record: mariadb-server-core provides mariadbd and
+# mariadb-install-db plus the bootstrap SQL under /usr/share/mysql, while
+# mariadb-client-core provides my_print_defaults -- which mariadb-install-db shells out
+# to and aborts without. Dropping that second package would leave the data directory
+# uninitialized and the database silently absent.
+#
+# The mysql system user normally comes from mariadb-server's postinst, which is not
+# installed here, so it is created explicitly: the entrypoint chowns the data directory
+# to it and starts mariadbd --user=mysql.
+#
+# Docs and man pages are excluded -- nothing reads them here and they are pure I/O.
 RUN set -eux; \
     echo 'exit 101' > /usr/sbin/policy-rc.d; \
     chmod +x /usr/sbin/policy-rc.d; \
     apt-get update; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        mariadb-server; \
-    rm -rf /var/lib/apt/lists/*
+        -o Dpkg::Options::="--path-exclude=/usr/share/doc/*" \
+        -o Dpkg::Options::="--path-exclude=/usr/share/man/*" \
+        mariadb-server-core \
+        mariadb-client-core; \
+    rm -rf /var/lib/apt/lists/*; \
+    getent group mysql >/dev/null || groupadd -r mysql; \
+    getent passwd mysql >/dev/null || useradd -r -g mysql -d /var/lib/mysql -s /usr/sbin/nologin mysql
 
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 COPY docker/apache-vhost.conf /etc/apache2/sites-available/000-default.conf
