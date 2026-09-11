@@ -16,11 +16,14 @@ ENV APP_ENV=production \
     PORT=80
 
 # pdo_mysql is the only database driver the app uses (it is PDO throughout), and it
-# pulls in pdo itself. opcache is the one meaningful performance win. Both ship in the
-# base image's bundled source tree, so building them needs no network access.
+# pulls in pdo itself. opcache is the one meaningful performance win. Both are installed
+# via mlocati/docker-php-extension-installer, which fetches prebuilt binaries instead of
+# compiling from source — compiling opcache's JIT support from scratch was taking over
+# 20 minutes in HostForge's build environment and timing out the deployment.
+ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
 RUN set -eux; \
-    docker-php-ext-install -j"$(nproc)" pdo_mysql opcache; \
-    a2enmod rewrite headers remoteip expires
+install-php-extensions pdo_mysql opcache; \
+a2enmod rewrite headers remoteip expires
 
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 COPY docker/apache-vhost.conf /etc/apache2/sites-available/000-default.conf
