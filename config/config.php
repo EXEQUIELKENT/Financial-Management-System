@@ -27,6 +27,12 @@ function env_value(string $key, ?string $default = null): ?string {
     return ($value === null || $value === '') ? $default : (string)$value;
 }
 
+function env_flag(string $key, bool $default = false): bool {
+    $value = env_value($key);
+    if ($value === null) return $default;
+    return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+}
+
 define('APP_TITLE', 'Intelligent Integrated Financial Management System');
 define('APP_FULL_TITLE', 'Design and Development of an Intelligent Integrated Financial Management System with AI Financial Assistance, Predictive Analysis, and Decision Support for Travel and Tour Agencies');
 define('APP_SHORT_NAME', 'TravelCore FMS');
@@ -91,3 +97,9 @@ define('BASE_URL', rtrim($baseUrl, '/'));
 
 define('CURRENCY_SYMBOL', env_value('CURRENCY_SYMBOL', '₱'));
 define('IDLE_TIMEOUT_SECONDS', (int)env_value('IDLE_TIMEOUT_SECONDS', '1800'));
+
+// The guided tours and the Getting Started page are onboarding aids for local and
+// demo use. A deployed site hides them: the sidebar entry, the per-page "?" button
+// and its overlay, and the Getting Started page itself. Set SHOW_GUIDES=true to put
+// them back on a deployment (for a training environment, say).
+define('SHOW_GUIDES', env_flag('SHOW_GUIDES', APP_ENV !== 'production'));

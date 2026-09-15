@@ -39,7 +39,7 @@ $flashes = flash();
         </button>
         <div class="topbar-title">
             <?= e($pageTitle) ?>
-            <?php if (!empty($pageHelp)): ?>
+            <?php if (SHOW_GUIDES && !empty($pageHelp)): ?>
                 <button type="button" class="page-help-btn" onclick="startPageGuide()" aria-label="Guide me through this page" title="Guide me through this page">?</button>
             <?php endif; ?>
         </div>
@@ -58,9 +58,8 @@ $flashes = flash();
             <a href="<?= BASE_URL ?>/logout.php" class="btn btn-outline btn-sm" data-confirm="Are you sure you want to log out?">Logout</a>
         </div>
     </div>
-    <?php if (!empty($pageHelp)): ?>
+    <?php if (SHOW_GUIDES && !empty($pageHelp)): ?>
     <script>window.PAGE_GUIDE_STEPS = <?= json_encode($pageHelp) ?>;</script>
-    <?php endif; ?>
     <!-- Per-page guide overlay: shared by every page, hidden until "?" is clicked.
          Same spotlight/tooltip components as the Getting Started tour (see style.css
          .tour-* rules), driven by assets/js/page-guide.js instead of tour.js. -->
@@ -85,6 +84,7 @@ $flashes = flash();
             <button type="button" class="btn btn-primary btn-sm" id="pgNextBtn" onclick="pageGuideNext()">Next →</button>
         </div>
     </div>
+    <?php endif; ?>
     <div class="content">
     <?php if (!empty($flashes)): foreach ($flashes as $f): ?>
         <div class="alert alert-<?= $f['type'] === 'error' ? 'critical' : e($f['type']) ?>"><?= e($f['message']) ?></div>

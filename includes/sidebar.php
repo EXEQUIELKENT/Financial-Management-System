@@ -21,7 +21,9 @@ $currentPath = urldecode(strtok($_SERVER['REQUEST_URI'], '?'));
 $navSections = [
     [
         'items' => [
-            ['?', 'Getting Started', BASE_URL . '/modules/help/index.php', 'dashboard.view'],
+            // Onboarding entry: present locally and in demo environments, hidden on a
+            // deployed site (see SHOW_GUIDES in config/config.php).
+            ...(SHOW_GUIDES ? [['?', 'Getting Started', BASE_URL . '/modules/help/index.php', 'dashboard.view']] : []),
             ['GL', 'Dashboard', BASE_URL . '/modules/dashboard/index.php', 'dashboard.view'],
         ],
     ],

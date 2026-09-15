@@ -2,6 +2,12 @@
 require_once __DIR__ . '/../../includes/auth.php';
 require_permission('dashboard.view');
 
+// The Getting Started tour is an onboarding aid, hidden on a deployed site. The
+// sidebar entry is gone there too, so this only catches a bookmark or a typed URL.
+if (!SHOW_GUIDES) {
+    redirect('modules/dashboard/index.php');
+}
+
 $user = current_user();
 $role = $user['role_name'];
 

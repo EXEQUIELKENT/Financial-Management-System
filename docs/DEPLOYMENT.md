@@ -94,8 +94,16 @@ Point the same variables at a real database and leave `DB_EMBEDDED` unset:
 Nothing else changes - `DB_AUTO_MIGRATE=true` creates the schema on either.
 
 Optional everywhere: `APP_BASE_URL` (leave unset - auto-detected), `APP_TIMEZONE`,
-`IDLE_TIMEOUT_SECONDS`, `DB_WAIT_SECONDS`, `DB_EMBEDDED_BUFFER_POOL`. Full list in
-[`.env.example`](../.env.example).
+`IDLE_TIMEOUT_SECONDS`, `DB_WAIT_SECONDS`, `DB_EMBEDDED_BUFFER_POOL`, `SHOW_GUIDES`.
+Full list in [`.env.example`](../.env.example).
+
+### Guided tours and the Getting Started page
+
+These are onboarding aids, and `APP_ENV=production` hides all of them: the sidebar
+entry, the per-page "?" button and its overlay, the `page-guide.js` asset, and the
+Getting Started page itself (a bookmarked or typed URL redirects to the dashboard).
+No separate setting is needed for a normal deployment. Set `SHOW_GUIDES=true` to keep
+them on a deployment where they are wanted, such as a training environment.
 
 > **`DB_AUTO_SEED=true` publishes a known admin password.** The demo data ships four
 > accounts whose password (`Passw0rd!`) is in this repository. Fine for a demo URL; an
