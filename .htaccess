@@ -13,7 +13,7 @@ Options -Indexes
 
     # Server-side-only directories: PHP includes, DB credentials, CLI scripts,
     # container config and Composer's vendor tree are never valid request targets.
-    RewriteRule ^(config|includes|scripts|docker|vendor)/ - [F,L]
+    RewriteRule ^(config|includes|scripts|docker|vendor|lib)/ - [F,L]
 
     # Dotfiles (.git, .env, editor state) must not be downloadable.
     RewriteRule (^|/)\. - [F,L]

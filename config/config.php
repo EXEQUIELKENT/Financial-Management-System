@@ -98,6 +98,25 @@ define('BASE_URL', rtrim($baseUrl, '/'));
 define('CURRENCY_SYMBOL', env_value('CURRENCY_SYMBOL', '₱'));
 define('IDLE_TIMEOUT_SECONDS', (int)env_value('IDLE_TIMEOUT_SECONDS', '1800'));
 
+// --- Outbound mail (password-reset codes) ----------------------------------
+// MAIL_PASSWORD empty means mail is not configured. The reset flow then fails closed
+// in production rather than pretending a code was sent; outside production it falls
+// back to showing the code on screen so the flow stays usable without an SMTP account.
+define('MAIL_HOST', env_value('MAIL_HOST', 'smtp.gmail.com'));
+define('MAIL_PORT', (int)env_value('MAIL_PORT', '587'));
+define('MAIL_USERNAME', env_value('MAIL_USERNAME', ''));
+define('MAIL_PASSWORD', env_value('MAIL_PASSWORD', ''));
+define('MAIL_ENCRYPTION', env_value('MAIL_ENCRYPTION', 'tls'));
+define('MAIL_FROM_EMAIL', env_value('MAIL_FROM_EMAIL', MAIL_USERNAME ?: 'no-reply@travelcore.local'));
+define('MAIL_FROM_NAME', env_value('MAIL_FROM_NAME', APP_SHORT_NAME));
+
+// How long a reset code stays valid, and how long before another can be requested.
+define('OTP_VALIDITY_MINUTES', (int)env_value('OTP_VALIDITY_MINUTES', '10'));
+define('OTP_MAX_ATTEMPTS', (int)env_value('OTP_MAX_ATTEMPTS', '5'));
+define('OTP_RESEND_COOLDOWN_SECONDS', (int)env_value('OTP_RESEND_COOLDOWN_SECONDS', '60'));
+// Whole-flow deadline: how long the visitor has from requesting a code to finishing.
+define('PASSWORD_RESET_WINDOW_SECONDS', (int)env_value('PASSWORD_RESET_WINDOW_SECONDS', '900'));
+
 // The guided tours and the Getting Started page are onboarding aids for local and
 // demo use. A deployed site hides them: the sidebar entry, the per-page "?" button
 // and its overlay, and the Getting Started page itself. Set SHOW_GUIDES=true to put

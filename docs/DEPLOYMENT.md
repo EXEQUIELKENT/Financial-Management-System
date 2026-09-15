@@ -26,8 +26,10 @@ here. **Do not use that.** The image no longer runs Composer at all, and if the
 platform executes that string on a build host without PHP and Composer installed,
 the build fails before Docker is ever invoked.
 
-This application has no third-party dependencies - `composer.json` exists to declare
-the PHP version and extensions it needs, not to install anything. If the field
+This application installs no dependencies at build time - its one third-party library
+(PHPMailer, for password-reset emails) is vendored into `lib/` and committed.
+`composer.json` exists to declare the PHP version and extensions it needs, not to
+install anything. If the field
 refuses to stay empty, give it something that succeeds anywhere:
 
 ```sh
@@ -97,6 +99,29 @@ Optional everywhere: `APP_BASE_URL` (leave unset - auto-detected), `APP_TIMEZONE
 `IDLE_TIMEOUT_SECONDS`, `DB_WAIT_SECONDS`, `DB_EMBEDDED_BUFFER_POOL`, `SHOW_GUIDES`.
 Full list in [`.env.example`](../.env.example).
 
+### Password reset ("Forgot your password?")
+
+The login page offers a self-service reset: the user enters their email address,
+receives a six-digit code, and exchanges it for a new password. **It only delivers
+codes once SMTP is configured**, via `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`,
+`MAIL_PASSWORD` and `MAIL_ENCRYPTION`.
+
+With `MAIL_PASSWORD` empty the flow fails closed in production: the page behaves
+normally but no code is sent and none is revealed on screen. Outside production the
+code is shown on screen instead, so the flow stays demonstrable locally without an
+SMTP account. Set the variables before telling anyone the feature is available.
+
+For Gmail, `MAIL_PASSWORD` must be a 16-character **App Password** from an account
+with 2-Step Verification enabled; a normal account password is rejected.
+
+Two notes on the database:
+
+- The codes live in `password_reset_otps`, which `includes/PasswordReset.php` creates
+  on demand. An already-deployed database picks the feature up with no migration,
+  because `scripts/migrate.php` deliberately does nothing once tables exist.
+- Reset only works for users who **have an email address on file** and are `Active`.
+  The seeded demo accounts have one; check any account you created by hand.
+
 ### Guided tours and the Getting Started page
 
 These are onboarding aids, and `APP_ENV=production` hides all of them: the sidebar
@@ -123,8 +148,8 @@ HostForge kills a build at 20 minutes, and this project has hit that cap twice:
    `my_print_defaults`, without which `mariadb-install-db` aborts). Docs and man pages
    are excluded from extraction.
 
-There is no Composer step - the application has no third-party PHP dependencies, so
-`composer install` would install nothing.
+There is no Composer step. The only third-party library (PHPMailer) is committed under
+`lib/`, so `composer install` would fetch nothing anyway.
 
 If a future change puts the build back over the cap, the next thing to cut is `opcache`.
 It is a performance optimization, not a requirement: the app runs correctly without it,

@@ -3,9 +3,10 @@
 #
 # Build steps are kept few and cheap, because the platform's build step times out:
 # PHP extensions come from prebuilt binaries rather than a from-source compile, and
-# there is no Composer step at all, since the application has no third-party PHP
-# dependencies. composer.json stays in the repository as an accurate manifest of the
-# PHP version and extensions required, but nothing here needs to run Composer.
+# there is no Composer step at all. The one third-party library (PHPMailer, used to send
+# password-reset codes) is vendored into lib/ and committed, so no package registry is
+# contacted at build time. composer.json stays in the repository as an accurate manifest
+# of the PHP version and extensions required, but nothing here needs to run Composer.
 
 FROM php:8.2-apache
 

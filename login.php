@@ -48,6 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($error): ?>
             <div class="alert alert-critical"><?= e($error) ?></div>
         <?php endif; ?>
+        <?php if (isset($_GET['reset'])): ?>
+            <div class="alert alert-success">Your password has been changed. Sign in with your new password.</div>
+        <?php endif; ?>
 
         <form method="post" action="">
             <?= csrf_field() ?>
@@ -61,6 +64,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit" class="btn btn-primary btn-block">Sign In</button>
         </form>
+
+        <p style="text-align:center;margin-top:14px;">
+            <a href="<?= BASE_URL ?>/forgot-password.php">Forgot your password?</a>
+        </p>
 
         <?php if (APP_ENV !== 'production'): // Never publish demo credentials on a public URL. ?>
         <div class="login-demo">
