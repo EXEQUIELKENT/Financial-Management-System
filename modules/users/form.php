@@ -38,13 +38,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $db->prepare("UPDATE users SET username=?, email=?, full_name=?, role_id=?, status=? WHERE id=?");
                 $stmt->execute([$user['username'], $user['email'], $user['full_name'], $user['role_id'], $user['status'], $id]);
             }
-            log_audit('update', 'users', $id, 'Updated user ' . $user['username']);
+            $roleName = $db->query('SELECT name FROM roles WHERE id = ' . (int)$user['role_id'])->fetchColumn();
+            log_audit('update', 'users', $id, sprintf('Updated user %s (role: %s, status: %s)',
+                $user['username'], $roleName, $user['status']));
             flash('success', 'User updated.');
         } else {
             $stmt = $db->prepare("INSERT INTO users (username, email, full_name, role_id, status, password_hash) VALUES (?,?,?,?,?,?)");
             $stmt->execute([$user['username'], $user['email'], $user['full_name'], $user['role_id'], $user['status'], password_hash($password, PASSWORD_DEFAULT)]);
             $id = (int)$db->lastInsertId();
-            log_audit('create', 'users', $id, 'Created user ' . $user['username']);
+            $roleName = $db->query('SELECT name FROM roles WHERE id = ' . (int)$user['role_id'])->fetchColumn();
+            log_audit('create', 'users', $id, sprintf('Created user %s (role: %s, status: %s)',
+                $user['username'], $roleName, $user['status']));
             flash('success', 'User created.');
         }
         redirect('modules/users/list.php');
@@ -88,6 +92,7 @@ include __DIR__ . '/../../includes/header.php';
                 <select name="status">
                     <option value="Active" <?= $user['status']==='Active'?'selected':'' ?>>Active</option>
                     <option value="Inactive" <?= $user['status']==='Inactive'?'selected':'' ?>>Inactive</option>
+                    <option value="Pending" <?= $user['status']==='Pending'?'selected':'' ?>>Pending (awaiting approval)</option>
                 </select>
             </div>
         </div>

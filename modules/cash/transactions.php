@@ -1,16 +1,17 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('cash.view');
 
 $db = get_db();
 $accountFilter = (int)($_GET['cash_account_id'] ?? 0);
-$sql = "SELECT t.*, ca.account_name FROM cash_transactions t JOIN cash_accounts ca ON ca.id = t.cash_account_id WHERE 1=1";
+$from = "FROM cash_transactions t JOIN cash_accounts ca ON ca.id = t.cash_account_id WHERE 1=1";
 $params = [];
-if ($accountFilter) { $sql .= " AND t.cash_account_id = ?"; $params[] = $accountFilter; }
-$sql .= " ORDER BY t.transaction_date DESC, t.id DESC LIMIT 200";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$transactions = $stmt->fetchAll();
+if ($accountFilter) { $from .= " AND t.cash_account_id = ?"; $params[] = $accountFilter; }
+$pager = paginate($db,
+    "SELECT t.*, ca.account_name $from ORDER BY t.transaction_date DESC, t.id DESC",
+    "SELECT COUNT(*) $from", $params, current_page());
+$transactions = $pager['data'];
 
 $accounts = $db->query("SELECT id, account_name FROM cash_accounts ORDER BY account_name")->fetchAll();
 
@@ -61,5 +62,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

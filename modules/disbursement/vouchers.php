@@ -1,16 +1,17 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('disbursement.view');
 
 $db = get_db();
 $status = $_GET['status'] ?? '';
-$sql = "SELECT dv.*, u.full_name AS requested_by_name FROM disbursement_vouchers dv JOIN users u ON u.id = dv.requested_by WHERE 1=1";
+$from = "FROM disbursement_vouchers dv JOIN users u ON u.id = dv.requested_by WHERE 1=1";
 $params = [];
-if ($status !== '') { $sql .= " AND dv.status = ?"; $params[] = $status; }
-$sql .= " ORDER BY dv.dv_date DESC, dv.id DESC LIMIT 200";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$vouchers = $stmt->fetchAll();
+if ($status !== '') { $from .= " AND dv.status = ?"; $params[] = $status; }
+$pager = paginate($db,
+    "SELECT dv.*, u.full_name AS requested_by_name $from ORDER BY dv.dv_date DESC, dv.id DESC",
+    "SELECT COUNT(*) $from", $params, current_page());
+$vouchers = $pager['data'];
 
 $pageTitle = 'Disbursement Vouchers';
 $pageHelp = [
@@ -65,5 +66,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

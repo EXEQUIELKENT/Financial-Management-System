@@ -14,6 +14,7 @@
  */
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/Audit.php';
 
 /**
  * Creates the table if it is missing.
@@ -30,6 +31,7 @@ function password_reset_ensure_table(): void {
         CREATE TABLE IF NOT EXISTS password_reset_otps (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
+            purpose VARCHAR(30) NOT NULL DEFAULT 'password_reset',
             code_hash VARCHAR(255) NOT NULL,
             attempts INT UNSIGNED NOT NULL DEFAULT 0,
             max_attempts INT UNSIGNED NOT NULL DEFAULT 5,
@@ -42,6 +44,16 @@ function password_reset_ensure_table(): void {
             CONSTRAINT fk_pr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
+
+    // Tables created before login codes existed predate the purpose column. MySQL 8 has
+    // no ADD COLUMN IF NOT EXISTS, so the failure on an up-to-date table is swallowed.
+    try {
+        get_db()->exec("ALTER TABLE password_reset_otps
+            ADD COLUMN purpose VARCHAR(30) NOT NULL DEFAULT 'password_reset' AFTER user_id");
+    } catch (Throwable $e) {
+        // Already present -- nothing to do.
+    }
+
     $done = true;
 }
 
@@ -56,12 +68,12 @@ function password_reset_find_user(string $email): ?array {
 }
 
 /** True when a code was already issued to this user within $withinSeconds. */
-function password_reset_recent_exists(int $userId, int $withinSeconds): bool {
+function password_reset_recent_exists(int $userId, int $withinSeconds, string $purpose = 'password_reset'): bool {
     password_reset_ensure_table();
     $stmt = get_db()->prepare(
-        'SELECT created_at FROM password_reset_otps WHERE user_id = ? ORDER BY id DESC LIMIT 1'
+        'SELECT created_at FROM password_reset_otps WHERE user_id = ? AND purpose = ? ORDER BY id DESC LIMIT 1'
     );
-    $stmt->execute([$userId]);
+    $stmt->execute([$userId, $purpose]);
     $createdAt = $stmt->fetchColumn();
     return $createdAt !== false && (time() - strtotime((string)$createdAt)) < $withinSeconds;
 }
@@ -70,18 +82,21 @@ function password_reset_recent_exists(int $userId, int $withinSeconds): bool {
  * Issues a new code, invalidating any outstanding one so only the newest works.
  * Returns the plaintext code -- the only moment it exists in readable form.
  */
-function password_reset_create_code(int $userId): string {
+function password_reset_create_code(int $userId, string $purpose = 'password_reset'): string {
     password_reset_ensure_table();
     $db = get_db();
 
-    $db->prepare('DELETE FROM password_reset_otps WHERE user_id = ? OR expires_at < NOW()')->execute([$userId]);
+    // Only this purpose's codes are replaced: a pending sign-in code must not be voided
+    // by someone starting a password reset, or vice versa.
+    $db->prepare('DELETE FROM password_reset_otps WHERE (user_id = ? AND purpose = ?) OR expires_at < NOW()')
+       ->execute([$userId, $purpose]);
 
     $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $expires = date('Y-m-d H:i:s', time() + (OTP_VALIDITY_MINUTES * 60));
 
     $db->prepare(
-        'INSERT INTO password_reset_otps (user_id, code_hash, max_attempts, expires_at) VALUES (?, ?, ?, ?)'
-    )->execute([$userId, password_hash($code, PASSWORD_DEFAULT), OTP_MAX_ATTEMPTS, $expires]);
+        'INSERT INTO password_reset_otps (user_id, purpose, code_hash, max_attempts, expires_at) VALUES (?, ?, ?, ?, ?)'
+    )->execute([$userId, $purpose, password_hash($code, PASSWORD_DEFAULT), OTP_MAX_ATTEMPTS, $expires]);
 
     return $code;
 }
@@ -90,15 +105,15 @@ function password_reset_create_code(int $userId): string {
  * Checks a submitted code against the user's most recent one.
  * Returns ['success' => bool, 'message' => string].
  */
-function password_reset_verify_code(int $userId, string $code): array {
+function password_reset_verify_code(int $userId, string $code, string $purpose = 'password_reset'): array {
     password_reset_ensure_table();
     $db = get_db();
 
     $stmt = $db->prepare(
         'SELECT id, code_hash, attempts, max_attempts, used, expires_at
-           FROM password_reset_otps WHERE user_id = ? ORDER BY id DESC LIMIT 1'
+           FROM password_reset_otps WHERE user_id = ? AND purpose = ? ORDER BY id DESC LIMIT 1'
     );
-    $stmt->execute([$userId]);
+    $stmt->execute([$userId, $purpose]);
     $row = $stmt->fetch();
 
     if (!$row) {
@@ -137,14 +152,7 @@ function password_reset_apply(int $userId, string $newPassword): void {
  * the session, which is empty during a reset, so the id is passed explicitly here.
  */
 function password_reset_audit(?int $userId, string $action, string $details): void {
-    try {
-        get_db()->prepare(
-            'INSERT INTO audit_log (user_id, action, module, details, ip, created_at) VALUES (?, ?, ?, ?, ?, NOW())'
-        )->execute([$userId, $action, 'auth', $details, $_SERVER['REMOTE_ADDR'] ?? '']);
-    } catch (Throwable $e) {
-        // Auditing must never break the reset itself.
-        error_log('Password reset audit failed: ' . $e->getMessage());
-    }
+    log_audit_as($userId, $action, 'auth', null, $details);
 }
 
 /** Returns an error message when the password is too weak, or null when acceptable. */

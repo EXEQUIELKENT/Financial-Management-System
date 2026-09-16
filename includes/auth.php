@@ -2,6 +2,7 @@
 require_once __DIR__ . '/session.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/Audit.php';
 
 function attempt_login(string $username, string $password): bool {
     $db = get_db();
@@ -9,6 +10,10 @@ function attempt_login(string $username, string $password): bool {
     $stmt->execute([$username]);
     $user = $stmt->fetch();
     if (!$user || !password_verify($password, $user['password_hash'])) {
+        // Attribute to the account when the username exists, so failures against a real
+        // user are attributable; unknown usernames are logged with no user id.
+        log_audit_as($user['id'] ?? null, 'login_failed', 'auth', null,
+            'Failed sign-in for username: ' . $username);
         return false;
     }
     session_regenerate_id(true);
@@ -21,6 +26,7 @@ function attempt_login(string $username, string $password): bool {
     $_SESSION['last_activity'] = time();
 
     $db->prepare("UPDATE users SET last_login = NOW() WHERE id = ?")->execute([$user['id']]);
+    log_audit('login', 'auth', (int)$user['id'], 'Signed in as ' . $user['role_name']);
     return true;
 }
 
@@ -77,6 +83,8 @@ function require_permission(string $key): void {
 }
 
 function do_logout(): void {
+    // Logged before the session is cleared, while the actor is still known.
+    log_audit('logout', 'auth', null, 'Signed out');
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();

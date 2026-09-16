@@ -3,7 +3,10 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_permission('users.view');
 
 $db = get_db();
-$users = $db->query("SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id ORDER BY u.full_name")->fetchAll();
+$users = $db->query("SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id
+                      ORDER BY (u.status = 'Pending') DESC, u.full_name")->fetchAll();
+$pendingCount = 0;
+foreach ($users as $u) { if ($u['status'] === 'Pending') $pendingCount++; }
 
 $pageTitle = 'Users';
 $pageHelp = [];
@@ -20,6 +23,14 @@ $pageHelp[] = ['selector' => 'table.data-table',
     'tl' => ['title' => 'Last Login column', 'body' => 'Kailan huling naglog-in ang user na iyon — "Never" kung hindi pa nila nagagawa.']];
 include __DIR__ . '/../../includes/header.php';
 ?>
+<?php if ($pendingCount > 0): ?>
+    <div class="alert alert-warning">
+        <span class="alert-title"><?= $pendingCount ?> account request<?= $pendingCount === 1 ? '' : 's' ?> awaiting approval</span>
+        Listed first below. Open one with Edit, set the correct role, then change its
+        status to Active &mdash; a Pending account cannot sign in, and every request
+        arrives with the view-only Auditor role as a placeholder.
+    </div>
+<?php endif; ?>
 <div class="card">
     <div class="table-toolbar">
         <div></div>

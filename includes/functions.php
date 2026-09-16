@@ -147,3 +147,13 @@ function status_badge_class(string $status): string {
     ];
     return $map[$status] ?? 'badge-draft';
 }
+
+/**
+ * Browser-tab icon tags. The SVG is a few hundred bytes and scales to any density;
+ * logo.png is offered only as the iOS home-screen icon, since at 570KB it is far too
+ * heavy to pull in on every page just to paint a 16px tab.
+ */
+function favicon_tags(): string {
+    return '<link rel="icon" type="image/svg+xml" href="' . asset_url('assets/images/favicon.svg') . '">'
+         . '<link rel="apple-touch-icon" href="' . asset_url('assets/images/logo.png') . '">';
+}

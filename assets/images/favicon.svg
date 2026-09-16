@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="TravelCore">
+  <!-- Same mark as render_logo() in includes/logo-placeholder.php. Kept as a standalone
+       SVG so the browser tab icon is a few hundred bytes rather than the 570KB logo.png. -->
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2F80ED"/>
+      <stop offset="100%" stop-color="#56CCF2"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="48" fill="url(#g)"/>
+  <path d="M30 45 L55 30 L60 34 L46 46 L68 50 L72 46 L76 49 L68 58 L46 54 L36 62 L30 60 L38 51 Z" fill="#FFFFFF" opacity="0.95"/>
+  <circle cx="50" cy="68" r="10" fill="#FFFFFF" opacity="0.85"/>
+  <path d="M14 72 Q50 60 86 72 L86 80 Q50 70 14 80 Z" fill="#FFFFFF" opacity="0.9"/>
+</svg>

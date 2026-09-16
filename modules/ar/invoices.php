@@ -1,16 +1,17 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('ar.view');
 
 $db = get_db();
 $status = $_GET['status'] ?? '';
-$sql = "SELECT i.*, c.name AS customer_name FROM ar_invoices i JOIN ar_customers c ON c.id = i.customer_id WHERE 1=1";
+$from = "FROM ar_invoices i JOIN ar_customers c ON c.id = i.customer_id WHERE 1=1";
 $params = [];
-if ($status !== '') { $sql .= " AND i.status = ?"; $params[] = $status; }
-$sql .= " ORDER BY i.invoice_date DESC, i.id DESC LIMIT 200";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$invoices = $stmt->fetchAll();
+if ($status !== '') { $from .= " AND i.status = ?"; $params[] = $status; }
+$pager = paginate($db,
+    "SELECT i.*, c.name AS customer_name $from ORDER BY i.invoice_date DESC, i.id DESC",
+    "SELECT COUNT(*) $from", $params, current_page());
+$invoices = $pager['data'];
 
 $pageTitle = 'Accounts Receivable - Invoices';
 $pageHelp = [
@@ -65,5 +66,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

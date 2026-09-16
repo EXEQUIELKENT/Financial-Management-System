@@ -1,11 +1,14 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('ap.view');
 
 $db = get_db();
-$payments = $db->query("SELECT p.*, v.name AS vendor_name, c.account_name AS cash_account_name
-                         FROM ap_payments p JOIN ap_vendors v ON v.id = p.vendor_id JOIN cash_accounts c ON c.id = p.cash_account_id
-                         ORDER BY p.payment_date DESC, p.id DESC LIMIT 200")->fetchAll();
+$from = "FROM ap_payments p JOIN ap_vendors v ON v.id = p.vendor_id JOIN cash_accounts c ON c.id = p.cash_account_id";
+$pager = paginate($db,
+    "SELECT p.*, v.name AS vendor_name, c.account_name AS cash_account_name $from ORDER BY p.payment_date DESC, p.id DESC",
+    "SELECT COUNT(*) $from", [], current_page());
+$payments = $pager['data'];
 
 $pageTitle = 'Accounts Payable - Payments';
 $pageHelp = [];
@@ -46,5 +49,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

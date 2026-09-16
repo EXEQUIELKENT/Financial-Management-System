@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('gl.view');
 
 $db = get_db();
@@ -7,17 +8,17 @@ $status = $_GET['status'] ?? '';
 $dateFrom = $_GET['date_from'] ?? '';
 $dateTo = $_GET['date_to'] ?? '';
 
-$sql = "SELECT je.*, u.full_name AS created_by_name,
-        (SELECT COALESCE(SUM(debit),0) FROM journal_lines WHERE journal_entry_id = je.id) AS total_amount
-        FROM journal_entries je JOIN users u ON u.id = je.created_by WHERE 1=1";
+$from = "FROM journal_entries je JOIN users u ON u.id = je.created_by WHERE 1=1";
+$select = "SELECT je.*, u.full_name AS created_by_name,
+        (SELECT COALESCE(SUM(debit),0) FROM journal_lines WHERE journal_entry_id = je.id) AS total_amount ";
 $params = [];
-if ($status !== '') { $sql .= " AND je.status = ?"; $params[] = $status; }
-if ($dateFrom !== '') { $sql .= " AND je.entry_date >= ?"; $params[] = $dateFrom; }
-if ($dateTo !== '') { $sql .= " AND je.entry_date <= ?"; $params[] = $dateTo; }
-$sql .= " ORDER BY je.entry_date DESC, je.id DESC LIMIT 200";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$entries = $stmt->fetchAll();
+if ($status !== '') { $from .= " AND je.status = ?"; $params[] = $status; }
+if ($dateFrom !== '') { $from .= " AND je.entry_date >= ?"; $params[] = $dateFrom; }
+if ($dateTo !== '') { $from .= " AND je.entry_date <= ?"; $params[] = $dateTo; }
+$pager = paginate($db,
+    $select . $from . " ORDER BY je.entry_date DESC, je.id DESC",
+    "SELECT COUNT(*) " . $from, $params, current_page());
+$entries = $pager['data'];
 
 $pageTitle = 'Journal Entries';
 $pageHelp = [
@@ -77,5 +78,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

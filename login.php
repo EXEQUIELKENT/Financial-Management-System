@@ -3,6 +3,9 @@ require_once __DIR__ . '/includes/session.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/logo-placeholder.php';
+require_once __DIR__ . '/includes/PasswordReset.php';
+require_once __DIR__ . '/includes/Mailer.php';
+require_once __DIR__ . '/includes/LoginOtp.php';
 
 if (is_logged_in()) {
     redirect('modules/dashboard/index.php');
@@ -16,6 +19,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($username === '' || $password === '') {
         $error = 'Please enter both username and password.';
     } elseif (attempt_login($username, $password)) {
+        // Second factor, but only when this server can actually send mail. Enforcing it
+        // without SMTP configured would lock every user out of the system, including the
+        // administrator who would have to fix it -- so an unconfigured server signs in
+        // directly, and the step switches itself on the moment MAIL_* is set.
+        if (mail_is_configured()) {
+            $uid = (int)$_SESSION['user_id'];
+            $email = login_otp_email($uid);
+            if ($email !== null) {
+                start_login_challenge($uid, $email);
+                redirect('verify-otp.php');
+            }
+            // No address on file means no way to receive a code. Rather than lock the
+            // account out, let them in and record it for an administrator to fix.
+            log_audit('login_otp_skipped', 'auth', $uid, 'No email address on file for two-step sign-in');
+        }
         redirect('modules/dashboard/index.php');
     } else {
         $error = 'Invalid username or password.';
@@ -27,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta charset="UTF-8">
 <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?= favicon_tags() ?>
 <title>Login - <?= e(APP_SHORT_NAME) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -48,6 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($error): ?>
             <div class="alert alert-critical"><?= e($error) ?></div>
         <?php endif; ?>
+        <?php if (isset($_GET['expired'])): ?>
+            <div class="alert alert-warning">Your sign-in verification timed out. Please sign in again.</div>
+        <?php endif; ?>
+        <?php if (isset($_GET['requested'])): ?>
+            <div class="alert alert-success">Your request has been submitted. An administrator will review it before you can sign in.</div>
+        <?php endif; ?>
         <?php if (isset($_GET['reset'])): ?>
             <div class="alert alert-success">Your password has been changed. Sign in with your new password.</div>
         <?php endif; ?>
@@ -67,6 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <p style="text-align:center;margin-top:14px;">
             <a href="<?= BASE_URL ?>/forgot-password.php">Forgot your password?</a>
+            &nbsp;&middot;&nbsp;
+            <a href="<?= BASE_URL ?>/request-account.php">Request an account</a>
         </p>
 
         <?php if (APP_ENV !== 'production'): // Never publish demo credentials on a public URL. ?>

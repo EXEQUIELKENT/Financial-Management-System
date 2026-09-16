@@ -1,18 +1,19 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('tax.view');
 
 $db = get_db();
 $direction = $_GET['direction'] ?? '';
 $status = $_GET['status'] ?? '';
-$sql = "SELECT tt.*, ty.name AS tax_name, ty.code FROM tax_transactions tt JOIN tax_types ty ON ty.id = tt.tax_type_id WHERE 1=1";
+$from = "FROM tax_transactions tt JOIN tax_types ty ON ty.id = tt.tax_type_id WHERE 1=1";
 $params = [];
-if ($direction !== '') { $sql .= " AND tt.direction = ?"; $params[] = $direction; }
-if ($status !== '') { $sql .= " AND tt.status = ?"; $params[] = $status; }
-$sql .= " ORDER BY tt.transaction_date DESC, tt.id DESC LIMIT 200";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$transactions = $stmt->fetchAll();
+if ($direction !== '') { $from .= " AND tt.direction = ?"; $params[] = $direction; }
+if ($status !== '') { $from .= " AND tt.status = ?"; $params[] = $status; }
+$pager = paginate($db,
+    "SELECT tt.*, ty.name AS tax_name, ty.code $from ORDER BY tt.transaction_date DESC, tt.id DESC",
+    "SELECT COUNT(*) $from", $params, current_page());
+$transactions = $pager['data'];
 
 $pageTitle = 'Tax Transactions';
 $pageHelp = [
@@ -64,5 +65,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

@@ -1,16 +1,17 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('audit.view');
 
 $db = get_db();
 $module = $_GET['module'] ?? '';
-$sql = "SELECT a.*, u.full_name FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE 1=1";
+$from = "FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE 1=1";
 $params = [];
-if ($module !== '') { $sql .= " AND a.module = ?"; $params[] = $module; }
-$sql .= " ORDER BY a.created_at DESC LIMIT 300";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$logs = $stmt->fetchAll();
+if ($module !== '') { $from .= " AND a.module = ?"; $params[] = $module; }
+$pager = paginate($db,
+    "SELECT a.*, u.full_name $from ORDER BY a.created_at DESC, a.id DESC",
+    "SELECT COUNT(*) $from", $params, current_page(), 50);
+$logs = $pager['data'];
 
 $modules = $db->query("SELECT DISTINCT module FROM audit_log ORDER BY module")->fetchAll();
 
@@ -51,5 +52,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

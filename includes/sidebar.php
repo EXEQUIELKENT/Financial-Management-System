@@ -79,6 +79,8 @@ $navSections = [
         'items' => [
             ['US', 'Users', BASE_URL . '/modules/users/list.php', 'users.view'],
             ['ST', 'Settings', BASE_URL . '/modules/settings/system-settings.php', 'settings.view'],
+            // Everyone has a profile, so this one is not permission-gated.
+            ['ME', 'My Profile', BASE_URL . '/modules/profile/index.php', null],
             ['AU', 'Audit Log', BASE_URL . '/modules/audit/audit-log.php', 'audit.view'],
         ],
     ],
@@ -95,7 +97,9 @@ $navSections = [
         <nav class="sidebar-nav">
             <?php foreach ($navSections as $section): ?>
                 <?php
-                    $visibleItems = array_filter($section['items'], fn($i) => has_permission($i[3]));
+                    // A null permission means "everyone" (My Profile); has_permission() takes a
+                    // string, so it must not be called with one.
+                    $visibleItems = array_filter($section['items'], fn($i) => $i[3] === null || has_permission($i[3]));
                     if (empty($visibleItems)) continue;
                 ?>
                 <?php if (!empty($section['label'])): ?>
@@ -125,7 +129,7 @@ $navSections = [
                                     [$childLabel, $childFile] = $child;
                                     $childActive = $currentPath === $moduleDir . $childFile;
                                 ?>
-                                <a href="<?= $moduleDir . $childFile ?>" class="<?= $childActive ? 'active' : '' ?>"><?= e($childLabel) ?></a>
+                                <a href="<?= $moduleDir . $childFile ?>" class="<?= $childActive ? 'active' : '' ?>" title="<?= e($childLabel) ?>"><?= e($childLabel) ?></a>
                             <?php endforeach; ?>
                         </div>
                         <?php endif; ?>

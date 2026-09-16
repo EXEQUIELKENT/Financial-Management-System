@@ -1,11 +1,14 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('ar.view');
 
 $db = get_db();
-$receipts = $db->query("SELECT r.*, c.name AS customer_name, ca.account_name AS cash_account_name
-                         FROM ar_receipts r JOIN ar_customers c ON c.id = r.customer_id JOIN cash_accounts ca ON ca.id = r.cash_account_id
-                         ORDER BY r.receipt_date DESC, r.id DESC LIMIT 200")->fetchAll();
+$from = "FROM ar_receipts r JOIN ar_customers c ON c.id = r.customer_id JOIN cash_accounts ca ON ca.id = r.cash_account_id";
+$pager = paginate($db,
+    "SELECT r.*, c.name AS customer_name, ca.account_name AS cash_account_name $from ORDER BY r.receipt_date DESC, r.id DESC",
+    "SELECT COUNT(*) $from", [], current_page());
+$receipts = $pager['data'];
 
 $pageTitle = 'Accounts Receivable - Receipts';
 $pageHelp = [];
@@ -46,5 +49,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

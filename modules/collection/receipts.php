@@ -1,16 +1,17 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('collection.view');
 
 $db = get_db();
 $status = $_GET['status'] ?? '';
-$sql = "SELECT cr.*, u.full_name AS received_by_name FROM collection_receipts cr JOIN users u ON u.id = cr.received_by WHERE 1=1";
+$from = "FROM collection_receipts cr JOIN users u ON u.id = cr.received_by WHERE 1=1";
 $params = [];
-if ($status !== '') { $sql .= " AND cr.status = ?"; $params[] = $status; }
-$sql .= " ORDER BY cr.cr_date DESC, cr.id DESC LIMIT 200";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$receipts = $stmt->fetchAll();
+if ($status !== '') { $from .= " AND cr.status = ?"; $params[] = $status; }
+$pager = paginate($db,
+    "SELECT cr.*, u.full_name AS received_by_name $from ORDER BY cr.cr_date DESC, cr.id DESC",
+    "SELECT COUNT(*) $from", $params, current_page());
+$receipts = $pager['data'];
 
 $pageTitle = 'Collection Receipts';
 $pageHelp = [
@@ -65,5 +66,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

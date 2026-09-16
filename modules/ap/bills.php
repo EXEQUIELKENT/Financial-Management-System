@@ -1,16 +1,17 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/Pagination.php';
 require_permission('ap.view');
 
 $db = get_db();
 $status = $_GET['status'] ?? '';
-$sql = "SELECT b.*, v.name AS vendor_name FROM ap_bills b JOIN ap_vendors v ON v.id = b.vendor_id WHERE 1=1";
+$from = "FROM ap_bills b JOIN ap_vendors v ON v.id = b.vendor_id WHERE 1=1";
 $params = [];
-if ($status !== '') { $sql .= " AND b.status = ?"; $params[] = $status; }
-$sql .= " ORDER BY b.bill_date DESC, b.id DESC LIMIT 200";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$bills = $stmt->fetchAll();
+if ($status !== '') { $from .= " AND b.status = ?"; $params[] = $status; }
+$pager = paginate($db,
+    "SELECT b.*, v.name AS vendor_name $from ORDER BY b.bill_date DESC, b.id DESC",
+    "SELECT COUNT(*) $from", $params, current_page());
+$bills = $pager['data'];
 
 $pageTitle = 'Accounts Payable - Bills';
 $pageHelp = [
@@ -68,5 +69,6 @@ include __DIR__ . '/../../includes/header.php';
         </tbody>
     </table>
     </div>
+    <?= render_pagination($pager) ?>
 </div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

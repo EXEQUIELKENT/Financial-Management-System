@@ -22,6 +22,7 @@ $flashes = flash();
     if(localStorage.getItem('sidebarCollapsed')==='1')document.documentElement.classList.add('sidebar-collapsed');
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?= favicon_tags() ?>
 <title><?= e($pageTitle) ?> - <?= e(APP_SHORT_NAME) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -54,7 +55,7 @@ $flashes = flash();
                 </span>
             </button>
             <span class="role-pill"><?= e($user['role_name']) ?></span>
-            <span><?= e($user['full_name']) ?></span>
+            <a href="<?= BASE_URL ?>/modules/profile/index.php" class="topbar-user-link" title="My profile"><?= e($user['full_name']) ?></a>
             <a href="<?= BASE_URL ?>/logout.php" class="btn btn-outline btn-sm" data-confirm="Are you sure you want to log out?">Logout</a>
         </div>
     </div>

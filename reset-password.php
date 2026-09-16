@@ -150,6 +150,7 @@ $devCode  = $_SESSION['dev_code_preview'] ?? null;
 <meta charset="UTF-8">
 <script>(function(){var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?= favicon_tags() ?>
 <title>Reset Password - <?= e(APP_SHORT_NAME) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -193,9 +194,8 @@ $devCode  = $_SESSION['dev_code_preview'] ?? null;
                 <input type="hidden" name="action" value="verify">
                 <div class="form-group">
                     <label for="code">Six-digit code</label>
-                    <input type="text" id="code" name="code" class="form-control" required autofocus
-                           inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"
-                           style="letter-spacing:6px;text-align:center;font-size:20px;">
+                    <input type="text" id="code" name="code" class="form-control otp-input" required autofocus
+                           inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">
                 </div>
                 <button type="submit" class="btn btn-primary btn-block">Verify code</button>
             </form>

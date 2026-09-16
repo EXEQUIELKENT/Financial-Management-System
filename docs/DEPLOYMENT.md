@@ -122,6 +122,32 @@ Two notes on the database:
 - Reset only works for users who **have an email address on file** and are `Active`.
   The seeded demo accounts have one; check any account you created by hand.
 
+### Accounts and sign-in
+
+**Two-step sign-in** switches itself on as soon as `MAIL_USERNAME` and `MAIL_PASSWORD`
+are set. After the password is accepted, a six-digit code is emailed and must be
+entered before the session becomes usable. With mail unconfigured the step is skipped
+entirely and sign-in works as before -- deliberately, because enforcing it on a server
+that cannot send mail would lock out every user including the administrator who would
+have to undo it. A user with no email address on file also skips it, and that is
+recorded in the audit log as `login_otp_skipped` for an administrator to fix.
+
+**Requesting an account.** The login page carries a "Request an account" link. It is
+not self-service registration: the request is stored with status `Pending` and the
+view-only `Auditor` role as a placeholder, and `Pending` accounts cannot sign in. An
+Admin sees a banner on **Users** listing outstanding requests (sorted to the top),
+opens one with Edit, sets the real role, and switches the status to `Active`.
+
+**My Profile** (in the sidebar, and on your name in the top bar) lets any signed-in
+user update their own name and email, change their password, and read their own audit
+trail. Keeping an email address there matters: it is the only route back in through
+"Forgot your password?", and the destination for two-step sign-in codes.
+
+**Audit coverage.** Sign-in, failed sign-in, sign-out, two-step challenges, password
+changes and resets, profile edits and account requests are all recorded in **Audit
+Log**, with the client IP. Failed sign-ins against a real username are attributed to
+that account, so repeated probing is visible.
+
 ### Guided tours and the Getting Started page
 
 These are onboarding aids, and `APP_ENV=production` hides all of them: the sidebar
