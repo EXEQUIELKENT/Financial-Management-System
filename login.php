@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form method="post" action="">
             <?= csrf_field() ?>
             <div class="form-group">
-                <label for="username">Username</label>
+                <label for="username">Username or email</label>
                 <input type="text" id="username" name="username" class="form-control" value="<?= old('username') ?>" required autofocus>
             </div>
             <div class="form-group">

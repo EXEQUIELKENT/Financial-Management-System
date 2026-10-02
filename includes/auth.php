@@ -6,14 +6,14 @@ require_once __DIR__ . '/Audit.php';
 
 function attempt_login(string $username, string $password): bool {
     $db = get_db();
-    $stmt = $db->prepare("SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.username = ? AND u.status = 'Active'");
-    $stmt->execute([$username]);
+    $stmt = $db->prepare("SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE (u.username = ? OR u.email = ?) AND u.status = 'Active'");
+    $stmt->execute([$username, $username]);
     $user = $stmt->fetch();
     if (!$user || !password_verify($password, $user['password_hash'])) {
         // Attribute to the account when the username exists, so failures against a real
         // user are attributable; unknown usernames are logged with no user id.
         log_audit_as($user['id'] ?? null, 'login_failed', 'auth', null,
-            'Failed sign-in for username: ' . $username);
+            'Failed sign-in for username/email: ' . $username);
         return false;
     }
     session_regenerate_id(true);

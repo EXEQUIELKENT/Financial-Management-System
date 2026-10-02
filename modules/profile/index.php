@@ -79,8 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Named $profile, not $user: includes/header.php assigns $user = current_user() when it
-// is included below, which would otherwise silently replace this fuller record.
+// Named $profile, not $user: keeps this fuller record distinct from the signed-in
+// user (includes/header.php exposes that one as $currentUser).
 $stmt = $db->prepare('SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?');
 $stmt->execute([$userId]);
 $profile = $stmt->fetch();

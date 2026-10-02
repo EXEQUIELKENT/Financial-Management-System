@@ -62,10 +62,10 @@ foreach ($db->query("SELECT id, name FROM roles")->fetchAll() as $r) { $roleIds[
 
 $demoPassword = password_hash('Passw0rd!', PASSWORD_DEFAULT);
 $userSpecs = [
-    ['admin', 'admin@travelcore.test', 'System Administrator', 'Admin'],
-    ['accountant', 'accountant@travelcore.test', 'Ana Contadora', 'Accountant'],
-    ['approver', 'approver@travelcore.test', 'Marco Aprobado', 'Approver'],
-    ['auditor', 'auditor@travelcore.test', 'Ivy Auditor', 'Auditor'],
+    ['admin', 'rvincetimothy@gmail.com', 'System Administrator', 'Admin'],
+    ['accountant', 'maddyperez22111@gmail.com', 'Ana Contadora', 'Accountant'],
+    ['approver', 'vlmnzn.fnc@gmail.com', 'Marco Aprobado', 'Approver'],
+    ['auditor', 'romerojanvincetimothy@gmail.com', 'Ivy Auditor', 'Auditor'],
 ];
 $userIds = [];
 $stmt = $db->prepare("INSERT INTO users (username, email, full_name, role_id, status, password_hash) VALUES (?,?,?,?,'Active',?)");

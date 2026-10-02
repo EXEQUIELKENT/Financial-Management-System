@@ -10,7 +10,9 @@ require_once __DIR__ . '/logo-placeholder.php';
 require_login();
 
 $pageTitle = $pageTitle ?? APP_SHORT_NAME;
-$user = current_user();
+// Named $currentUser (not $user): module pages like modules/users/form.php use $user
+// for the record being edited, and this include runs after they set it.
+$currentUser = current_user();
 $flashes = flash();
 ?><!DOCTYPE html>
 <html lang="en">
@@ -54,8 +56,8 @@ $flashes = flash();
                     </span>
                 </span>
             </button>
-            <span class="role-pill"><?= e($user['role_name']) ?></span>
-            <a href="<?= BASE_URL ?>/modules/profile/index.php" class="topbar-user-link" title="My profile"><?= e($user['full_name']) ?></a>
+            <span class="role-pill"><?= e($currentUser['role_name']) ?></span>
+            <a href="<?= BASE_URL ?>/modules/profile/index.php" class="topbar-user-link" title="My profile"><?= e($currentUser['full_name']) ?></a>
             <a href="<?= BASE_URL ?>/logout.php" class="btn btn-outline btn-sm" data-confirm="Are you sure you want to log out?">Logout</a>
         </div>
     </div>
