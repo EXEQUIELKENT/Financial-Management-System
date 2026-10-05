@@ -27,8 +27,14 @@ function login_otp_email(int $userId): ?string {
 /**
  * Suspends the signed-in session and sends a code.
  * Must be called immediately after attempt_login() returns true.
+ *
+ * Returns true when the challenge is active (a code went out). If the email could
+ * not be sent, the authenticated session is put back untouched and false is
+ * returned: parking someone with correct credentials behind a code that will
+ * never arrive would lock every user out the moment SMTP breaks. The failure is
+ * written to the audit log either way.
  */
-function start_login_challenge(int $userId, string $email): void {
+function start_login_challenge(int $userId, string $email): bool {
     $authenticated = $_SESSION;
 
     // Drop the live signed-in state, then re-key the session so the pending state is not
@@ -42,8 +48,19 @@ function start_login_challenge(int $userId, string $email): void {
     $_SESSION['pending_login_started_at']   = time();
     $_SESSION['pending_login_last_sent_at'] = time();
 
-    send_login_code($userId, $email);
+    if (!send_login_code($userId, $email)) {
+        log_audit_as($userId, 'login_otp_skipped', 'auth', $userId,
+            'Sign-in code could not be emailed; two-step sign-in skipped');
+        clear_login_challenge();
+        foreach ($authenticated as $k => $v) {
+            $_SESSION[$k] = $v;
+        }
+        $_SESSION['last_activity'] = time();
+        return false;
+    }
+
     log_audit_as($userId, 'login_otp_sent', 'auth', $userId, 'Sign-in code sent to ' . mask_email($email));
+    return true;
 }
 
 /** Generates and emails a sign-in code. Returns true when the email actually went out. */
@@ -67,6 +84,12 @@ function send_login_code(int $userId, string $email): bool {
 
     if (!$sent['success'] && !empty($sent['dev_fallback'])) {
         $_SESSION['dev_login_code'] = $code;
+    }
+    if (!$sent['success']) {
+        // Nobody received a code; make the why visible in the audit log so a broken
+        // SMTP configuration can be diagnosed from the admin side.
+        log_audit_as($userId, 'login_otp_send_failed', 'auth', $userId,
+            'Sign-in code email failed: ' . $sent['message']);
     }
     return (bool)$sent['success'];
 }

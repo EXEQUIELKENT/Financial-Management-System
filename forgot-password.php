@@ -77,6 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // screen so the flow stays usable locally. Never happens in production.
                     $_SESSION['dev_code_preview'] = $code;
                 }
+                if (!$sent['success']) {
+                    // The audit log is admin-only, so recording the failure here does not
+                    // weaken the decoy response shown to the visitor.
+                    password_reset_audit((int)$user['id'], 'password_reset_send_failed',
+                        'Reset code email failed: ' . $sent['message']);
+                }
                 password_reset_audit((int)$user['id'], 'password_reset_requested',
                     'Reset code issued for ' . $user['username']);
             }

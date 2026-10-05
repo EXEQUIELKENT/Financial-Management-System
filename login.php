@@ -27,8 +27,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $uid = (int)$_SESSION['user_id'];
             $email = login_otp_email($uid);
             if ($email !== null) {
-                start_login_challenge($uid, $email);
-                redirect('verify-otp.php');
+                // Only park the session when a code actually went out. If the send
+                // failed, start_login_challenge() restores the signed-in state and
+                // returns false, so the user is never stranded on the code screen.
+                if (start_login_challenge($uid, $email)) {
+                    redirect('verify-otp.php');
+                }
+                redirect('modules/dashboard/index.php');
             }
             // No address on file means no way to receive a code. Rather than lock the
             // account out, let them in and record it for an administrator to fix.

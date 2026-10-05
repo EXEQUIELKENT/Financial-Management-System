@@ -80,6 +80,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$sent['success'] && !empty($sent['dev_fallback'])) {
                     $_SESSION['dev_code_preview'] = $code;
                 }
+                if (!$sent['success']) {
+                    password_reset_audit($userId, 'password_reset_send_failed',
+                        'Reset code email failed: ' . $sent['message']);
+                }
                 password_reset_audit($userId, 'password_reset_code_resent', 'Reset code resent');
             } else {
                 // Decoy path: no database or mail work, same visible outcome.

@@ -47,8 +47,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Please wait {$wait}s before requesting another code.";
         } else {
             $_SESSION['pending_login_last_sent_at'] = time();
-            send_login_code($userId, $email);
-            $status = 'A new code has been sent to ' . mask_email($email) . '.';
+            unset($_SESSION['dev_login_code']);
+            if (send_login_code($userId, $email)) {
+                $status = 'A new code has been sent to ' . mask_email($email) . '.';
+            } else {
+                $error = 'We could not send a new code right now. Please try again '
+                       . 'in a few minutes, or contact your administrator.';
+            }
         }
 
     } else {
