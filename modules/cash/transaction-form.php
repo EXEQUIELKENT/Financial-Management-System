@@ -28,18 +28,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cashAcct = $cashStmt->fetch();
 
         $isInflow = $type === 'Deposit';
+        // The description typed here must survive into the general ledger: when the
+        // field is left blank, fall back to "Deposit - <account>" / "Withdrawal - <account>"
+        // so the entry description, every line memo and the cash register row stay readable.
+        $effectiveDescription = $description !== '' ? $description : ($type . ' - ' . $cashAcct['account_name']);
         $jeLines = $isInflow
-            ? [['account_id' => $cashAcct['gl_account_id'], 'debit' => $amount, 'credit' => 0, 'memo' => $description], ['account_id' => $offsetAccountId, 'debit' => 0, 'credit' => $amount, 'memo' => $description]]
-            : [['account_id' => $offsetAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $description], ['account_id' => $cashAcct['gl_account_id'], 'debit' => 0, 'credit' => $amount, 'memo' => $description]];
+            ? [['account_id' => $cashAcct['gl_account_id'], 'debit' => $amount, 'credit' => 0, 'memo' => $effectiveDescription], ['account_id' => $offsetAccountId, 'debit' => 0, 'credit' => $amount, 'memo' => $effectiveDescription]]
+            : [['account_id' => $offsetAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $effectiveDescription], ['account_id' => $cashAcct['gl_account_id'], 'debit' => 0, 'credit' => $amount, 'memo' => $effectiveDescription]];
 
         try {
             $entryId = post_journal_entry([
                 'entry_date' => $txDate, 'reference' => '', 'source_module' => 'cash', 'source_id' => null,
-                'description' => $description ?: ($type . ' - ' . $cashAcct['account_name']),
+                'description' => $effectiveDescription,
                 'created_by' => current_user()['id'], 'lines' => $jeLines,
             ]);
             $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, description, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?)")
-               ->execute([$cashAccountId, $txDate, $type, $amount, $description, $category, $entryId, current_user()['id']]);
+               ->execute([$cashAccountId, $txDate, $type, $amount, $effectiveDescription, $category, $entryId, current_user()['id']]);
             $db->prepare("UPDATE cash_accounts SET current_balance = current_balance " . ($isInflow ? '+' : '-') . " ? WHERE id = ?")->execute([$amount, $cashAccountId]);
             log_audit('create', 'cash', $cashAccountId, "Recorded $type of $amount");
             flash('success', 'Cash transaction recorded and posted to the general ledger.');

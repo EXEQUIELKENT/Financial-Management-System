@@ -112,7 +112,7 @@ include __DIR__ . '/../../includes/header.php';
         <?php foreach ($lines as $l): ?>
             <tr>
                 <td><?= e($l['account_code'] . ' - ' . $l['account_name']) ?></td>
-                <td class="text-muted"><?= e($l['memo']) ?></td>
+                <td class="text-muted"><?= e($l['memo'] !== '' ? $l['memo'] : '—') ?></td>
                 <td class="num"><?= $l['debit'] > 0 ? format_currency($l['debit']) : '' ?></td>
                 <td class="num"><?= $l['credit'] > 0 ? format_currency($l['credit']) : '' ?></td>
             </tr>

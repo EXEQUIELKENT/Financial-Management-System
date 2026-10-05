@@ -65,7 +65,7 @@ include __DIR__ . '/../../includes/header.php';
                 <td><?= e($je['entry_no']) ?></td>
                 <td><?= format_date($je['entry_date']) ?></td>
                 <td class="text-muted"><?= e($je['source_module']) ?></td>
-                <td><?= e($je['description']) ?></td>
+                <td><?= e($je['description'] !== '' ? $je['description'] : '—') ?></td>
                 <td><?= e($je['created_by_name']) ?></td>
                 <td class="num"><?= format_currency($je['total_amount']) ?></td>
                 <td><span class="badge <?= status_badge_class($je['status']) ?>"><?= e($je['status']) ?></span></td>
