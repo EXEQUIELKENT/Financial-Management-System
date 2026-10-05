@@ -29,29 +29,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$user['role_id']) $errors[] = 'Role is required.';
     if (!$id && $password === '') $errors[] = 'Password is required for new users.';
 
+    // Usernames are unique, and a clash used to surface as an uncaught database
+    // error -- a blank page on a production server. Check up front so the visitor
+    // gets a message they can act on instead.
     if (empty($errors)) {
-        if ($id) {
-            if ($password !== '') {
-                $stmt = $db->prepare("UPDATE users SET username=?, email=?, full_name=?, role_id=?, status=?, password_hash=? WHERE id=?");
-                $stmt->execute([$user['username'], $user['email'], $user['full_name'], $user['role_id'], $user['status'], password_hash($password, PASSWORD_DEFAULT), $id]);
-            } else {
-                $stmt = $db->prepare("UPDATE users SET username=?, email=?, full_name=?, role_id=?, status=? WHERE id=?");
-                $stmt->execute([$user['username'], $user['email'], $user['full_name'], $user['role_id'], $user['status'], $id]);
-            }
-            $roleName = $db->query('SELECT name FROM roles WHERE id = ' . (int)$user['role_id'])->fetchColumn();
-            log_audit('update', 'users', $id, sprintf('Updated user %s (role: %s, status: %s)',
-                $user['username'], $roleName, $user['status']));
-            flash('success', 'User updated.');
-        } else {
-            $stmt = $db->prepare("INSERT INTO users (username, email, full_name, role_id, status, password_hash) VALUES (?,?,?,?,?,?)");
-            $stmt->execute([$user['username'], $user['email'], $user['full_name'], $user['role_id'], $user['status'], password_hash($password, PASSWORD_DEFAULT)]);
-            $id = (int)$db->lastInsertId();
-            $roleName = $db->query('SELECT name FROM roles WHERE id = ' . (int)$user['role_id'])->fetchColumn();
-            log_audit('create', 'users', $id, sprintf('Created user %s (role: %s, status: %s)',
-                $user['username'], $roleName, $user['status']));
-            flash('success', 'User created.');
+        $dup = $db->prepare('SELECT COUNT(*) FROM users WHERE username = ? AND id <> ?');
+        $dup->execute([$user['username'], $id]);
+        if ((int)$dup->fetchColumn() > 0) {
+            $errors[] = 'That username is already taken. Please choose a different username.';
         }
-        redirect('modules/users/list.php');
+    }
+
+    if (empty($errors)) {
+        try {
+            if ($id) {
+                if ($password !== '') {
+                    $stmt = $db->prepare("UPDATE users SET username=?, email=?, full_name=?, role_id=?, status=?, password_hash=? WHERE id=?");
+                    $stmt->execute([$user['username'], $user['email'], $user['full_name'], $user['role_id'], $user['status'], password_hash($password, PASSWORD_DEFAULT), $id]);
+                } else {
+                    $stmt = $db->prepare("UPDATE users SET username=?, email=?, full_name=?, role_id=?, status=? WHERE id=?");
+                    $stmt->execute([$user['username'], $user['email'], $user['full_name'], $user['role_id'], $user['status'], $id]);
+                }
+                $roleName = $db->query('SELECT name FROM roles WHERE id = ' . (int)$user['role_id'])->fetchColumn();
+                log_audit('update', 'users', $id, sprintf('Updated user %s (role: %s, status: %s)',
+                    $user['username'], $roleName, $user['status']));
+                flash('success', 'User updated.');
+            } else {
+                $stmt = $db->prepare("INSERT INTO users (username, email, full_name, role_id, status, password_hash) VALUES (?,?,?,?,?,?)");
+                $stmt->execute([$user['username'], $user['email'], $user['full_name'], $user['role_id'], $user['status'], password_hash($password, PASSWORD_DEFAULT)]);
+                $id = (int)$db->lastInsertId();
+                $roleName = $db->query('SELECT name FROM roles WHERE id = ' . (int)$user['role_id'])->fetchColumn();
+                log_audit('create', 'users', $id, sprintf('Created user %s (role: %s, status: %s)',
+                    $user['username'], $roleName, $user['status']));
+                flash('success', 'User created.');
+            }
+        } catch (Throwable $e) {
+            // A database-level rejection (missing role, transport hiccup, ...) must
+            // not blank the page: keep the form open with a readable explanation
+            // and leave the detail in the server log.
+            error_log('User save failed: ' . $e->getMessage());
+            $errors[] = 'Could not save the user. Please try again, and contact your '
+                      . 'administrator if it keeps happening.';
+        }
+        if (empty($errors)) {
+            redirect('modules/users/list.php');
+        }
     }
 }
 
