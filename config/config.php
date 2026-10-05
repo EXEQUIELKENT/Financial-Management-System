@@ -95,7 +95,15 @@ if ($baseUrl === null) {
 }
 define('BASE_URL', rtrim($baseUrl, '/'));
 
-define('CURRENCY_SYMBOL', env_value('CURRENCY_SYMBOL', '₱'));
+// Guard against platform-mangled values: a currency symbol never contains digits
+// (or HTML-entity encoding). If the hosting platform injects a placeholder like
+// "262145" or an entity like "&#8369;", ignore it and keep the peso sign, so
+// amounts can never render as "26214588,789.00".
+$currencySymbol = env_value('CURRENCY_SYMBOL', '₱');
+if (preg_match('/[0-9]/', $currencySymbol)) {
+    $currencySymbol = '₱';
+}
+define('CURRENCY_SYMBOL', $currencySymbol);
 define('IDLE_TIMEOUT_SECONDS', (int)env_value('IDLE_TIMEOUT_SECONDS', '1800'));
 
 // --- Outbound mail (password-reset codes) ----------------------------------
