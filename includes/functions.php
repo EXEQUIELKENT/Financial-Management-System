@@ -2,7 +2,14 @@
 require_once __DIR__ . '/../config/config.php';
 
 function format_currency($amount): string {
-    return CURRENCY_SYMBOL . number_format((float)$amount, 2);
+    // Accept values that already carry formatting ("1,234.50", "PHP 1,234.50") so a
+    // string amount is never truncated by the float cast.
+    if (is_string($amount)) {
+        $amount = str_replace([CURRENCY_SYMBOL, 'PHP', ',', ' '], '', $amount);
+    }
+    $value = is_numeric($amount) ? (float)$amount : 0.0;
+    // Explicit separators: always "." decimal and "," thousands, 2 decimals -> ₱540,580.80
+    return CURRENCY_SYMBOL . number_format($value, 2, '.', ',');
 }
 
 function format_date($date, string $fmt = 'M d, Y'): string {

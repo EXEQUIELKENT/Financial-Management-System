@@ -95,13 +95,14 @@ if ($baseUrl === null) {
 }
 define('BASE_URL', rtrim($baseUrl, '/'));
 
-// Guard against platform-mangled values: a currency symbol is a short mark like
-// ₱, $, € or PHP. Hosting dashboards have mangled the multibyte peso sign into
-// digits/entities before (which rendered every amount as "26214588,309.00"), so
-// anything that cannot be a symbol falls back to the peso sign.
-$currencySymbol = trim((string)env_value('CURRENCY_SYMBOL', '₱'));
-if ($currencySymbol === '' || strlen($currencySymbol) > 6 || preg_match('/[\d.,&;#\'"\\\\]/u', $currencySymbol)) {
-    $currencySymbol = '₱';
+// Currency symbol. The peso sign is written as an ASCII-only escape so no file
+// encoding, editor, Git or hosting-dashboard step can mangle it (a mangled symbol is
+// what produced amounts like "26214588,309.00" on the live domain). The environment may
+// only pick from a short whitelist; any other value falls back to the peso sign.
+$pesoSign = "\u{20B1}";
+$currencySymbol = trim((string)env_value('CURRENCY_SYMBOL', $pesoSign));
+if (!in_array($currencySymbol, [$pesoSign, '$', "\u{20AC}", 'PHP'], true)) {
+    $currencySymbol = $pesoSign;
 }
 define('CURRENCY_SYMBOL', $currencySymbol);
 define('IDLE_TIMEOUT_SECONDS', (int)env_value('IDLE_TIMEOUT_SECONDS', '1800'));
