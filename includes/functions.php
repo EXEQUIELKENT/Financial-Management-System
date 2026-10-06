@@ -2,13 +2,23 @@
 require_once __DIR__ . '/../config/config.php';
 
 function format_currency($amount): string {
-    // Accept values that already carry formatting ("1,234.50", "PHP 1,234.50") so a
-    // string amount is never truncated by the float cast.
-    if (is_string($amount)) {
-        $amount = str_replace([CURRENCY_SYMBOL, 'PHP', ',', ' '], '', $amount);
+    // Already numeric (int/float/"540580.80"/"1.5E+3"): use it as-is.
+    if (!is_numeric($amount) && is_string($amount)) {
+        // The value already carries formatting ("1,234.50", "PHP 1,234.50") or a
+        // symbol that a hosting layer mangled into entities / mojibake. Drop entities
+        // first (so "&#8369;" can't leave "8369" behind), then keep ONLY digits, the
+        // decimal point and a minus sign -- whatever junk surrounds the number is
+        // discarded instead of being glued onto it.
+        $clean = html_entity_decode($amount, ENT_QUOTES, 'UTF-8');
+        $clean = preg_replace('/&#?[A-Za-z0-9]+;/', '', $clean);
+        $clean = preg_replace('/[^0-9.\-]/', '', (string)$clean);
+        $amount = $clean;
     }
     $value = is_numeric($amount) ? (float)$amount : 0.0;
+    if (!is_finite($value)) $value = 0.0;
     // Explicit separators: always "." decimal and "," thousands, 2 decimals -> ₱540,580.80
+    // (independent of the server locale). CURRENCY_SYMBOL is a \u{20B1} escape in
+    // config.php, so no file encoding can corrupt it.
     return CURRENCY_SYMBOL . number_format($value, 2, '.', ',');
 }
 

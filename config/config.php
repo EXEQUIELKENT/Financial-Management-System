@@ -105,6 +105,13 @@ if (!in_array($currencySymbol, [$pesoSign, '$', "\u{20AC}", 'PHP'], true)) {
     $currencySymbol = $pesoSign;
 }
 define('CURRENCY_SYMBOL', $currencySymbol);
+
+// Force UTF-8 on every response. If the host/proxy falls back to a Latin-1 charset in
+// the HTTP header, it overrides <meta charset> and the peso sign turns into gibberish.
+ini_set('default_charset', 'UTF-8');
+if (PHP_SAPI !== 'cli' && !headers_sent()) {
+    header('Content-Type: text/html; charset=UTF-8');
+}
 define('IDLE_TIMEOUT_SECONDS', (int)env_value('IDLE_TIMEOUT_SECONDS', '1800'));
 
 // --- Outbound mail (password-reset codes) ----------------------------------
