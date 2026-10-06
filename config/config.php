@@ -95,12 +95,12 @@ if ($baseUrl === null) {
 }
 define('BASE_URL', rtrim($baseUrl, '/'));
 
-// Guard against platform-mangled values: a currency symbol never contains digits
-// (or HTML-entity encoding). If the hosting platform injects a placeholder like
-// "262145" or an entity like "&#8369;", ignore it and keep the peso sign, so
-// amounts can never render as "26214588,789.00".
-$currencySymbol = env_value('CURRENCY_SYMBOL', '₱');
-if (preg_match('/[0-9]/', $currencySymbol)) {
+// Guard against platform-mangled values: a currency symbol is a short mark like
+// ₱, $, € or PHP. Hosting dashboards have mangled the multibyte peso sign into
+// digits/entities before (which rendered every amount as "26214588,309.00"), so
+// anything that cannot be a symbol falls back to the peso sign.
+$currencySymbol = trim((string)env_value('CURRENCY_SYMBOL', '₱'));
+if ($currencySymbol === '' || strlen($currencySymbol) > 6 || preg_match('/[\d.,&;#\'"\\\\]/u', $currencySymbol)) {
     $currencySymbol = '₱';
 }
 define('CURRENCY_SYMBOL', $currencySymbol);
