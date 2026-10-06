@@ -79,6 +79,9 @@ function send_mail(string $to, string $toName, string $subject, string $bodyHtml
             'success' => false,
             'dev_fallback' => false,
             'message' => 'Could not send the email. Please try again later.',
+            // Machine detail for the CLI mail-test script (scripts/mail-test.php).
+            // Never rendered to visitors -- only the generic message above is.
+            'detail' => $mail->ErrorInfo ?: $e->getMessage(),
         ];
     }
 }
