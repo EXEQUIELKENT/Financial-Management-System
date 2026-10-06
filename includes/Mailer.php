@@ -50,6 +50,19 @@ function send_mail(string $to, string $toName, string $subject, string $bodyHtml
         $mail->CharSet = 'UTF-8';
         $mail->Timeout = 15;
 
+        // Same as the LGU IPMS portal: local XAMPP/OpenSSL certificate
+        // verification against Gmail's chain is flaky, so peer verification
+        // is relaxed here (the connection itself is still TLS-encrypted).
+        // Without this, sends from a Windows dev box fail and the caller
+        // reports the code as undeliverable.
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+            ],
+        ];
+
         $mail->setFrom(MAIL_FROM_EMAIL, MAIL_FROM_NAME);
         $mail->addAddress($to, $toName);
         $mail->isHTML(true);

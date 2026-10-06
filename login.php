@@ -19,27 +19,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($username === '' || $password === '') {
         $error = 'Please enter both username and password.';
     } elseif (attempt_login($username, $password)) {
-        // Second factor, but only when this server can actually send mail. Enforcing it
-        // without SMTP configured would lock every user out of the system, including the
-        // administrator who would have to fix it -- so an unconfigured server signs in
-        // directly, and the step switches itself on the moment MAIL_* is set.
-        if (mail_is_configured()) {
-            $uid = (int)$_SESSION['user_id'];
-            $email = login_otp_email($uid);
-            if ($email !== null) {
-                // Only park the session when a code actually went out. If the send
-                // failed, start_login_challenge() restores the signed-in state and
-                // returns false, so the user is never stranded on the code screen.
-                if (start_login_challenge($uid, $email)) {
-                    redirect('verify-otp.php');
-                }
-                redirect('modules/dashboard/index.php');
+        // Two-step sign-in, mirroring the LGU IPMS staff flow: the password step
+        // parks the session and a code must be entered before it is restored.
+        // The challenge starts whenever the account has an email that can
+        // receive the code; without mail configured the code is shown on the
+        // verification screen outside production (dev preview), and in
+        // production an undeliverable code refuses the sign-in instead of
+        // silently skipping the second factor.
+        $uid = (int)$_SESSION['user_id'];
+        $email = login_otp_email($uid);
+        if ($email !== null) {
+            if (start_login_challenge($uid, $email)) {
+                redirect('verify-otp.php');
             }
+            $error = 'Unable to send verification code, contact your administrator.';
+        } else {
             // No address on file means no way to receive a code. Rather than lock the
             // account out, let them in and record it for an administrator to fix.
             log_audit('login_otp_skipped', 'auth', $uid, 'No email address on file for two-step sign-in');
+            redirect('modules/dashboard/index.php');
         }
-        redirect('modules/dashboard/index.php');
     } else {
         $error = 'Invalid username or password.';
     }
@@ -80,6 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
         <?php if (isset($_GET['reset'])): ?>
             <div class="alert alert-success">Your password has been changed. Sign in with your new password.</div>
+        <?php endif; ?>
+        <?php if (isset($_GET['inactive'])): ?>
+            <div class="alert alert-warning">That account is no longer active. Please contact your administrator.</div>
         <?php endif; ?>
 
         <form method="post" action="">

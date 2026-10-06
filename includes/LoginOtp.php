@@ -28,11 +28,13 @@ function login_otp_email(int $userId): ?string {
  * Suspends the signed-in session and sends a code.
  * Must be called immediately after attempt_login() returns true.
  *
- * Returns true when the challenge is active (a code went out). If the email could
- * not be sent, the authenticated session is put back untouched and false is
- * returned: parking someone with correct credentials behind a code that will
- * never arrive would lock every user out the moment SMTP breaks. The failure is
- * written to the audit log either way.
+ * Mirrors the LGU IPMS staff-login flow: the challenge only starts when the
+ * code is actually deliverable (emailed, or held as a dev preview outside
+ * production). When delivery fails the pending state is discarded and false
+ * is returned -- the caller must refuse the sign-in ("Unable to send
+ * verification code, contact your administrator.") rather than silently
+ * granting access or stranding the user on a code screen for a code that
+ * will never arrive.
  */
 function start_login_challenge(int $userId, string $email): bool {
     $authenticated = $_SESSION;
@@ -49,13 +51,9 @@ function start_login_challenge(int $userId, string $email): bool {
     $_SESSION['pending_login_last_sent_at'] = time();
 
     if (!send_login_code($userId, $email)) {
-        log_audit_as($userId, 'login_otp_skipped', 'auth', $userId,
-            'Sign-in code could not be emailed; two-step sign-in skipped');
+        log_audit_as($userId, 'login_otp_send_failed', 'auth', $userId,
+            'Sign-in code could not be delivered; sign-in refused');
         clear_login_challenge();
-        foreach ($authenticated as $k => $v) {
-            $_SESSION[$k] = $v;
-        }
-        $_SESSION['last_activity'] = time();
         return false;
     }
 
@@ -63,7 +61,11 @@ function start_login_challenge(int $userId, string $email): bool {
     return true;
 }
 
-/** Generates and emails a sign-in code. Returns true when the email actually went out. */
+/**
+ * Generates and emails a sign-in code. Returns true when the challenge can
+ * proceed: the email went out, or (outside production) the code is held as a
+ * dev preview on the verification screen, exactly like the LGU flow.
+ */
 function send_login_code(int $userId, string $email): bool {
     $code = password_reset_create_code($userId, LOGIN_OTP_PURPOSE);
 
@@ -84,6 +86,7 @@ function send_login_code(int $userId, string $email): bool {
 
     if (!$sent['success'] && !empty($sent['dev_fallback'])) {
         $_SESSION['dev_login_code'] = $code;
+        return true;
     }
     if (!$sent['success']) {
         // Nobody received a code; make the why visible in the audit log so a broken
@@ -99,15 +102,32 @@ function login_challenge_pending(): bool {
     return !empty($_SESSION['pending_login_started_at']) && !empty($_SESSION['pending_login']);
 }
 
-/** Restores the suspended session, completing the sign-in. */
-function complete_login_challenge(): void {
+/**
+ * Restores the suspended session, completing the sign-in. Like the LGU flow,
+ * the account is re-read first: an account deactivated after the password
+ * step must not be let in on a code alone. Returns false when the account
+ * is no longer usable (the challenge is already cleared then).
+ */
+function complete_login_challenge(): bool {
     $authenticated = $_SESSION['pending_login'] ?? [];
+    $userId = (int)($_SESSION['pending_login_user_id'] ?? 0);
     clear_login_challenge();
+
+    $stmt = get_db()->prepare("SELECT status FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    if ($stmt->fetchColumn() !== 'Active') {
+        log_audit_as($userId ?: null, 'login_otp_blocked', 'auth', $userId ?: null,
+            'Account no longer active at two-step completion');
+        session_regenerate_id(true);
+        return false;
+    }
+
     session_regenerate_id(true);
     foreach ($authenticated as $k => $v) {
         $_SESSION[$k] = $v;
     }
     $_SESSION['last_activity'] = time();
+    return true;
 }
 
 function clear_login_challenge(): void {

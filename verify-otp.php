@@ -49,10 +49,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['pending_login_last_sent_at'] = time();
             unset($_SESSION['dev_login_code']);
             if (send_login_code($userId, $email)) {
-                $status = 'A new code has been sent to ' . mask_email($email) . '.';
+                if (isset($_SESSION['dev_login_code'])) {
+                    $status = 'A new code has been generated (dev preview shown below).';
+                } else {
+                    $status = 'A new code has been sent to ' . mask_email($email) . '.';
+                }
             } else {
-                $error = 'We could not send a new code right now. Please try again '
-                       . 'in a few minutes, or contact your administrator.';
+                $error = 'Unable to send verification code, contact your administrator.';
             }
         }
 
@@ -63,9 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $result = password_reset_verify_code($userId, $code, LOGIN_OTP_PURPOSE);
             if ($result['success']) {
-                complete_login_challenge();
-                log_audit('login_otp_verified', 'auth', $userId, 'Completed two-step sign-in');
-                redirect('modules/dashboard/index.php');
+                if (complete_login_challenge()) {
+                    log_audit('login_otp_verified', 'auth', $userId, 'Completed two-step sign-in');
+                    redirect('modules/dashboard/index.php');
+                }
+                redirect('login.php?inactive=1');
             }
             $error = $result['message'];
             log_audit_as($userId, 'login_otp_failed', 'auth', $userId, $result['message']);
