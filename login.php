@@ -28,15 +28,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // silently skipping the second factor.
         $uid = (int)$_SESSION['user_id'];
         $email = login_otp_email($uid);
-        if ($email !== null) {
+        // Two-step sign-in only runs when a code can actually be delivered: mail is
+        // configured, or this is a non-production environment (code shown on screen).
+        // On a production host with no MAIL_* settings, requiring a code would lock
+        // every user out (including the admin), so the step is skipped and logged.
+        $canDeliverCode = mail_is_configured() || APP_ENV !== 'production';
+        if ($email !== null && $canDeliverCode) {
             if (start_login_challenge($uid, $email)) {
                 redirect('verify-otp.php');
             }
             $error = 'Unable to send verification code, contact your administrator.';
         } else {
-            // No address on file means no way to receive a code. Rather than lock the
-            // account out, let them in and record it for an administrator to fix.
-            log_audit('login_otp_skipped', 'auth', $uid, 'No email address on file for two-step sign-in');
+            // No address on file, or mail isn't configured on this production host: there
+            // is no way to receive a code. Rather than lock the account out, let them in
+            // and record it for an administrator to fix.
+            log_audit('login_otp_skipped', 'auth', $uid, $email === null
+                ? 'No email address on file for two-step sign-in'
+                : 'Mail is not configured on this server; two-step sign-in skipped');
             redirect('modules/dashboard/index.php');
         }
     } else {
