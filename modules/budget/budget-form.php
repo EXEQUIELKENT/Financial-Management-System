@@ -7,23 +7,57 @@ require_permission('budget.create');
 $db = get_db();
 $id = isset($_GET['id']) ? (int)$_GET['id'] : (isset($_POST['id']) ? (int)$_POST['id'] : 0);
 $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+$errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $action = $_POST['form_action'] ?? 'create_header';
 
     if ($action === 'create_header') {
-        $periodId = (int)$_POST['budget_period_id'];
+        $periodId = (int)($_POST['budget_period_id'] ?? 0);
         $departmentId = !empty($_POST['department_id']) ? (int)$_POST['department_id'] : null;
         $name = trim($_POST['name'] ?? '');
-        $stmt = $db->prepare("INSERT INTO budgets (budget_period_id, department_id, name, status, created_by) VALUES (?,?,?,'Draft',?)");
-        $stmt->execute([$periodId, $departmentId, $name, current_user()['id']]);
-        $id = (int)$db->lastInsertId();
-        log_audit('create', 'budget', $id, 'Created budget ' . $name);
-        flash('success', 'Budget created. Add account lines below.');
-        redirect('modules/budget/budget-form.php?id=' . $id);
+        $periodOk = false;
+        if ($periodId > 0) {
+            $pCheck = $db->prepare("SELECT COUNT(*) FROM budget_periods WHERE id = ? AND status = 'Open'");
+            $pCheck->execute([$periodId]);
+            $periodOk = ((int)$pCheck->fetchColumn() > 0);
+        }
+        if (!$periodOk) $errors[] = 'Please choose an open budget period. Create one under Budget Periods first if none exist.';
+        if ($name === '') $errors[] = 'Budget name is required.';
+        if (!empty($departmentId)) {
+            $dCheck = $db->prepare("SELECT COUNT(*) FROM departments WHERE id = ?");
+            $dCheck->execute([$departmentId]);
+            if ((int)$dCheck->fetchColumn() === 0) $errors[] = 'The chosen department no longer exists.';
+        }
+        if (empty($errors)) {
+            $stmt = $db->prepare("INSERT INTO budgets (budget_period_id, department_id, name, status, created_by) VALUES (?,?,?,'Draft',?)");
+            $stmt->execute([$periodId, $departmentId, $name, current_user()['id']]);
+            $id = (int)$db->lastInsertId();
+            log_audit('create', 'budget', $id, 'Created budget ' . $name);
+            flash('success', 'Budget created. Add account lines below.');
+            redirect('modules/budget/budget-form.php?id=' . $id);
+        }
     } elseif ($action === 'add_line') {
-        $accountId = (int)$_POST['account_id'];
+        $accountId = (int)($_POST['account_id'] ?? 0);
+        $lineError = '';
+        if ($accountId <= 0) {
+            $lineError = 'Please choose an account to add.';
+        } else {
+            $aCheck = $db->prepare("SELECT COUNT(*) FROM coa_accounts WHERE id = ? AND is_active = 1 AND account_type IN ('Expense','Revenue')");
+            $aCheck->execute([$accountId]);
+            if ((int)$aCheck->fetchColumn() === 0) {
+                $lineError = 'That account is not an active Expense/Revenue account.';
+            } else {
+                $dupCheck = $db->prepare("SELECT COUNT(*) FROM budget_lines WHERE budget_id = ? AND account_id = ?");
+                $dupCheck->execute([$id, $accountId]);
+                if ((int)$dupCheck->fetchColumn() > 0) $lineError = 'That account already has a line on this budget.';
+            }
+        }
+        if ($lineError !== '') {
+            flash('error', $lineError);
+            redirect('modules/budget/budget-form.php?id=' . $id);
+        }
         $stmt = $db->prepare("INSERT INTO budget_lines (budget_id, account_id) VALUES (?,?)");
         $stmt->execute([$id, $accountId]);
         $lineId = (int)$db->lastInsertId();
@@ -71,12 +105,22 @@ if (!$id) {
     include __DIR__ . '/../../includes/header.php';
     ?>
     <div class="card" style="max-width:520px;">
+        <?php foreach ($errors as $err): ?><div class="alert alert-critical"><?= e($err) ?></div><?php endforeach; ?>
+        <?php if (empty($periods)): ?>
+            <div class="alert alert-warning">
+                <span class="alert-title">No open budget period yet</span>
+                A budget must belong to a period. Create one first, then come back here.
+            </div>
+            <a href="period-form.php" class="btn btn-primary">Create Budget Period</a>
+            <a href="budgets.php" class="btn btn-outline">Back</a>
+        <?php else: ?>
         <form method="post">
             <?= csrf_field() ?>
             <input type="hidden" name="form_action" value="create_header">
             <div class="form-group"><label>Budget Period</label>
                 <select name="budget_period_id" required>
-                    <?php foreach ($periods as $p): ?><option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option><?php endforeach; ?>
+                    <option value="">— Select period —</option>
+                    <?php foreach ($periods as $p): ?><option value="<?= $p['id'] ?>" <?= ((int)($_POST['budget_period_id'] ?? 0) === (int)$p['id']) ? 'selected' : '' ?>><?= e($p['name']) ?> (<?= e($p['start_date']) ?> to <?= e($p['end_date']) ?>)</option><?php endforeach; ?>
                 </select>
             </div>
             <div class="form-group"><label>Department (optional)</label>
@@ -84,10 +128,11 @@ if (!$id) {
                     <?php foreach ($departments as $d): ?><option value="<?= $d['id'] ?>"><?= e($d['name']) ?></option><?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group"><label>Budget Name</label><input type="text" name="name" class="form-control" placeholder="e.g. Operating Budget" required></div>
+            <div class="form-group"><label>Budget Name</label><input type="text" name="name" class="form-control" placeholder="e.g. Operating Budget" value="<?= e($_POST['name'] ?? '') ?>" required></div>
             <button type="submit" class="btn btn-primary">Create Budget</button>
             <a href="budgets.php" class="btn btn-outline">Cancel</a>
         </form>
+        <?php endif; ?>
     </div>
     <?php include __DIR__ . '/../../includes/footer.php'; ?>
     <?php
@@ -153,6 +198,8 @@ include __DIR__ . '/../../includes/header.php';
     <p class="text-muted">Period: <?= e($budget['period_name']) ?></p>
 
     <?php if ($budget['status'] === 'Draft'): ?>
+    <?php $availableAccounts = array_values(array_filter($accounts, fn($a) => !in_array($a['id'], $existingAccountIds))); ?>
+    <?php if (!empty($availableAccounts)): ?>
     <form method="post" style="margin-bottom:20px;display:flex;gap:8px;align-items:flex-end;">
         <?= csrf_field() ?>
         <input type="hidden" name="id" value="<?= $id ?>">
@@ -161,13 +208,22 @@ include __DIR__ . '/../../includes/header.php';
             <label>Add Account Line</label>
             <select name="account_id" required>
                 <option value="">— Select account —</option>
-                <?php foreach ($accounts as $a): if (in_array($a['id'], $existingAccountIds)) continue; ?>
+                <?php foreach ($availableAccounts as $a): ?>
                     <option value="<?= $a['id'] ?>"><?= e($a['account_code'].' - '.$a['account_name']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
         <button type="submit" class="btn btn-outline">+ Add</button>
     </form>
+    <?php elseif (empty($accounts)): ?>
+    <div class="alert alert-warning" style="margin-bottom:20px;">
+        <span class="alert-title">No accounts to budget yet</span>
+        There are no active Expense/Revenue accounts. Add them in
+        <a href="../gl/chart-of-accounts.php">Chart of Accounts</a> first.
+    </div>
+    <?php else: ?>
+    <p class="form-hint" style="margin-bottom:20px;">All active accounts already have lines on this budget.</p>
+    <?php endif; ?>
     <?php endif; ?>
 
     <form method="post">
