@@ -177,10 +177,10 @@ HostForge kills a build at 20 minutes, and this project has hit that cap twice:
 There is no Composer step. The only third-party library (PHPMailer) is committed under
 `lib/`, so `composer install` would fetch nothing anyway.
 
-If a future change puts the build back over the cap, the next thing to cut is `opcache`.
-It is a performance optimization, not a requirement: the app runs correctly without it,
-and the `opcache.*` settings in `docker/php.ini` are simply ignored when the extension
-is absent. Dropping it from the `install-php-extensions` line is a one-word change.
+3. **`opcache`.** A build on 2026-10-08 still took 16.5 of the 20 minutes, so `opcache`
+   was dropped from the `install-php-extensions` line. It is a performance optimization,
+   not a requirement: the app runs correctly without it, and the `opcache.*` settings in
+   `docker/php.ini` are simply ignored. Adding it back is a one-word change.
 
 ## 4. First deploy
 
@@ -262,7 +262,7 @@ first deploy completes; if it does not, check the domain's DNS records.
 
 ## 9. What this repository provides for deployment
 
-- **`Dockerfile`** - PHP 8.2 + Apache, `pdo_mysql` and `opcache`, production PHP
+- **`Dockerfile`** - PHP 8.2 + Apache, `pdo_mysql`, production PHP
   settings, `rewrite`/`headers`/`remoteip`/`expires` enabled, and a `HEALTHCHECK`.
   No network access needed beyond pulling the base image.
 - **`composer.json` / `.php-version`** - the runtime markers the validator needs,

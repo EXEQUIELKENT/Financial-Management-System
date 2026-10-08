@@ -16,13 +16,14 @@ ENV APP_ENV=production \
     PORT=80
 
 # pdo_mysql is the only database driver the app uses (it is PDO throughout), and it
-# pulls in pdo itself. opcache is the one meaningful performance win. Both are installed
-# via mlocati/docker-php-extension-installer, which fetches prebuilt binaries instead of
-# compiling from source — compiling opcache's JIT support from scratch was taking over
-# 20 minutes in HostForge's build environment and timing out the deployment.
+# pulls in pdo itself. It is installed via mlocati/docker-php-extension-installer, which
+# fetches prebuilt binaries instead of compiling from source. opcache was removed to keep
+# the build well under HostForge's 20-minute cap (a build took 16.5 minutes with it). It
+# is only a speed-up; the opcache.* lines in docker/php.ini are ignored without it.
+# To bring it back: add "opcache" after pdo_mysql below.
 ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
 RUN set -eux; \
-install-php-extensions pdo_mysql opcache; \
+install-php-extensions pdo_mysql; \
 a2enmod rewrite headers remoteip expires
 
 # Embedded MariaDB, started only when DB_EMBEDDED=true at runtime (docker/entrypoint.sh).
