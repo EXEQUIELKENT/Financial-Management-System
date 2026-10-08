@@ -228,6 +228,68 @@ const check = (name, ok, extra = '') => { results.push(`${ok ? 'PASS' : 'FAIL'} 
     r = await post('/modules/collection/receipt-form.php', [['payer_type', 'Customer'], ['customer_id', custId], ['payer_name', 'E2E Customer'], ['cr_date', '2026-10-08'], ['cash_account_id', '2'], [`apply_invoice[${invId}]`, '99999999']]);
     check('collection over invoice balance rejected', /unpaid balance/.test(r.alerts), r.alerts);
 
+    // 10. Gap-free numbering under concurrency: three separate sessions (PHP serialises
+    // requests within one session) each save three bills at the same time.
+    const loginContext = async () => {
+      const ctx = await browser.newContext();
+      const p = await ctx.newPage();
+      await p.goto(BASE + '/login.php');
+      await p.fill('#username', 'admin');
+      await p.fill('#password', 'Passw0rd!');
+      await p.click('button[type=submit]');
+      await p.waitForLoadState();
+      await p.goto(BASE + '/modules/ap/bill-form.php');
+      return { ctx, p, token: await p.locator('input[name=csrf_token]').first().getAttribute('value') };
+    };
+    const sessions = await Promise.all([loginContext(), loginContext(), loginContext()]);
+    const maxBefore = Number(sql('SELECT MAX(id) FROM ap_bills'));
+    const billBody = token => new URLSearchParams([['csrf_token', token], ['vendor_id', '1'], ['bill_date', '2026-10-08'], ['due_date', '2026-11-08'],
+      ['description[]', 'E2E concurrent'], ['account_id[]', '21'], ['qty[]', '1'], ['unit_price[]', '100'], ['tax_type_id[]', '']]).toString();
+    await Promise.all(sessions.flatMap(s => [1, 2, 3].map(() => s.p.request.post(BASE + '/modules/ap/bill-form.php',
+      { headers: { 'content-type': 'application/x-www-form-urlencoded' }, data: billBody(s.token) }))));
+    const nums = sql(`SELECT CAST(SUBSTRING_INDEX(bill_no, '-', -1) AS UNSIGNED) FROM ap_bills WHERE id > ${maxBefore} ORDER BY 1`).split(/\s+/).map(Number);
+    const consecutive = nums.length === 9 && nums.every((n, i) => i === 0 || n === nums[i - 1] + 1);
+    check('9 concurrent bills get unique consecutive numbers', consecutive, nums.join(','));
+    await Promise.all(sessions.map(s => s.ctx.close()));
+
+    // 11. Void rules: a paid bill can't be voided until its payment is voided.
+    const [vb, vbNo] = sql(`SELECT id, bill_no FROM ap_bills WHERE id > ${maxBefore} ORDER BY id LIMIT 1`).split('\t');
+    await post(`/modules/ap/bill-view.php?id=${vb}`, [['action', 'approve']]);
+    const cashBefore = sql('SELECT current_balance FROM cash_accounts WHERE id = 1');
+    r = await post('/modules/ap/payment-form.php', [['vendor_id', '1'], ['cash_account_id', '1'], ['payment_date', '2026-10-08'], [`apply[${vb}]`, '60']]);
+    const payId = sql('SELECT MAX(id) FROM ap_payments');
+    r = await post(`/modules/ap/bill-view.php?id=${vb}`, [['action', 'void']]);
+    check('void of partly paid bill blocked', /Void those payments first/.test(r.alerts) && sql(`SELECT status FROM ap_bills WHERE id = ${vb}`) === 'PartiallyPaid', r.alerts);
+    r = await post('/modules/ap/payments.php', [['action', 'void'], ['id', payId], ['reason', '']]);
+    check('payment void needs a reason', /reason/.test(r.alerts), r.alerts);
+    r = await post('/modules/ap/payments.php', [['action', 'void'], ['id', payId], ['reason', 'E2E wrong amount']]);
+    check('payment voided: bill reopened, cash restored', sql(`SELECT status FROM ap_payments WHERE id = ${payId}`) === 'Void'
+      && sql(`SELECT CONCAT(status, ' ', amount_paid) FROM ap_bills WHERE id = ${vb}`) === 'Open 0.00'
+      && sql('SELECT current_balance FROM cash_accounts WHERE id = 1') === cashBefore, r.alerts);
+    r = await post(`/modules/ap/bill-view.php?id=${vb}`, [['action', 'void']]);
+    check('unpaid bill voids', sql(`SELECT status FROM ap_bills WHERE id = ${vb}`) === 'Void', `${vbNo} ${r.alerts}`);
+
+    // A payment made by a voucher is voided through the voucher.
+    const dvPayId = sql(`SELECT ap_payment_id FROM disbursement_vouchers WHERE id = ${dvId}`);
+    r = await post('/modules/ap/payments.php', [['action', 'void'], ['id', dvPayId], ['reason', 'E2E']]);
+    check('voucher payment must be voided via voucher', /Void that voucher instead/.test(r.alerts), r.alerts);
+    const dvBillPaid = Number(sql(`SELECT amount_paid FROM ap_bills WHERE id = ${dvBill}`));
+    await post(`/modules/disbursement/voucher-view.php?id=${dvId}`, [['action', 'void'], ['comments', 'E2E']]);
+    check('paid voucher voided: bill amount restored, payment void', sql(`SELECT status FROM disbursement_vouchers WHERE id = ${dvId}`) === 'Void'
+      && Number(sql(`SELECT amount_paid FROM ap_bills WHERE id = ${dvBill}`)) === dvBillPaid - 300
+      && sql(`SELECT status FROM ap_payments WHERE id = ${dvPayId}`) === 'Void', sql(`SELECT amount_paid FROM ap_bills WHERE id = ${dvBill}`));
+
+    // 12. Amount fields accept "1,500" typed in the browser and tidy it on blur.
+    await page.goto(BASE + `/modules/ar/receipt-form.php?customer_id=${custId}`);
+    const applyBox = page.locator('.applyAmt').first();
+    await applyBox.fill('1,500');
+    await page.locator('input[name=reference_no]').click();
+    check('typed 1,500 is kept and formatted', (await applyBox.inputValue()) === '1,500.00', await applyBox.inputValue());
+    await page.selectOption('select[name=cash_account_id]', '2');
+    await page.click('button[type=submit]');
+    await page.waitForLoadState();
+    check('receipt with 1,500 submits', page.url().includes('customer-view'), page.url() + ' ' + (await flash()));
+
     const tb = sql("SELECT ROUND(SUM(jl.debit)-SUM(jl.credit),2) FROM journal_lines jl JOIN journal_entries je ON je.id = jl.journal_entry_id WHERE je.status IN ('Posted','Void')");
     check('whole ledger still balances', tb === '0.00', tb);
   } catch (e) {

@@ -155,7 +155,7 @@ include __DIR__ . '/../../includes/header.php';
                         <?php foreach ($accounts as $a): ?><option value="<?= $a['id'] ?>" <?= (int)($l['account_id'] ?? 0) === (int)$a['id'] ? 'selected' : '' ?>><?= e($a['account_code'].' - '.$a['account_name']) ?></option><?php endforeach; ?>
                     </select></td>
                     <td><input type="number" step="0.01" name="qty[]" min="0" class="form-control lineQty" value="<?= e((string)($l['qty'] ?? 1)) ?>" oninput="calcTotals()"></td>
-                    <td><input type="number" step="0.01" name="unit_price[]" min="0" class="form-control linePrice" value="<?= e((string)($l['unit_price'] ?? 0)) ?>" oninput="calcTotals()"></td>
+                    <td><input type="text" inputmode="decimal" autocomplete="off" name="unit_price[]" class="money form-control linePrice" value="<?= e((string)($l['unit_price'] ?? 0)) ?>" oninput="calcTotals()"></td>
                     <td><select name="tax_type_id[]" class="lineTax" onchange="calcTotals()">
                         <option value="">None</option>
                         <?php foreach ($taxTypes as $t): ?><option value="<?= $t['id'] ?>" data-rate="<?= $t['rate_percent'] ?>" <?= (int)($l['tax_type_id'] ?? 0) === (int)$t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?> (<?= $t['rate_percent'] ?>%)</option><?php endforeach; ?>
@@ -201,8 +201,8 @@ function calcTotals() {
     var rows = document.querySelectorAll('#lineBody tr');
     var subtotal = 0, tax = 0;
     rows.forEach(function(row){
-        var qty = parseFloat(row.querySelector('.lineQty').value || 0);
-        var price = parseFloat(row.querySelector('.linePrice').value || 0);
+        var qty = (parseMoney(row.querySelector('.lineQty').value) || 0);
+        var price = (parseMoney(row.querySelector('.linePrice').value) || 0);
         var amount = Math.round(qty * price * 100) / 100;
         var taxSel = row.querySelector('.lineTax');
         var rate = taxSel.selectedOptions[0] ? parseFloat(taxSel.selectedOptions[0].getAttribute('data-rate') || 0) : 0;

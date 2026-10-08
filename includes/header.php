@@ -29,6 +29,26 @@ function formatMoney(n){
     n = Number(n); if (!isFinite(n)) n = 0;
     return n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
+// Reads a typed amount ("1,500", " 2000.50", "₱3,000") the way the server's
+// parse_amount() does. Returns NaN for text that isn't a number.
+function parseMoney(v){
+    v = String(v == null ? '' : v).replace(/[,\s ₱]/g, '');
+    return v === '' ? 0 : Number(v);
+}
+// Amount fields are text inputs with class "money" and inputmode="decimal" (type=number
+// rejects "1,500" before submit). Tidy them to "1,234.50" when the user leaves the field,
+// and select a zero on focus so typing replaces it. Delegated, so rows added later work too.
+document.addEventListener('focusout', function(e){
+    var el = e.target;
+    if (el && el.classList && el.classList.contains('money')) {
+        var n = parseMoney(el.value);
+        if (el.value.trim() !== '' && isFinite(n)) el.value = formatMoney(n);
+    }
+});
+document.addEventListener('focusin', function(e){
+    var el = e.target;
+    if (el && el.classList && el.classList.contains('money') && parseMoney(el.value) === 0) el.select();
+});
 // A focused number input changes value when the mouse wheel scrolls over it, which
 // silently alters amounts while the user is just scrolling the page. Drop focus instead.
 document.addEventListener('wheel', function(e){

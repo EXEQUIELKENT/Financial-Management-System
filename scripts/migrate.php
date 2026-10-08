@@ -116,12 +116,51 @@ $existing = (int)$db->query(
     'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()'
 )->fetchColumn();
 
+/**
+ * Schema changes made after the first release. Each one checks information_schema
+ * first, so this is safe on every boot and brings an older database up to what
+ * sql/schema.sql creates today. (Portable: MySQL has no ADD COLUMN IF NOT EXISTS.)
+ */
+function apply_upgrades(PDO $db): void {
+    $hasTable = function (string $table) use ($db): bool {
+        $s = $db->prepare('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?');
+        $s->execute([$table]);
+        return (int)$s->fetchColumn() > 0;
+    };
+    $hasColumn = function (string $table, string $column) use ($db): bool {
+        $s = $db->prepare('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?');
+        $s->execute([$table, $column]);
+        return (int)$s->fetchColumn() > 0;
+    };
+
+    if (!$hasTable('document_sequences')) {
+        $db->exec("CREATE TABLE document_sequences (
+            prefix VARCHAR(10) NOT NULL,
+            year SMALLINT NOT NULL,
+            last_no INT NOT NULL DEFAULT 0,
+            PRIMARY KEY (prefix, year)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        say('Upgrade: created document_sequences.');
+    }
+    foreach (['ap_payments', 'ar_receipts'] as $table) {
+        if ($hasTable($table) && !$hasColumn($table, 'status')) {
+            $db->exec("ALTER TABLE {$table} ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'Posted' AFTER journal_entry_id");
+            say("Upgrade: added {$table}.status.");
+        }
+        if ($hasTable($table) && !$hasColumn($table, 'voided_at')) {
+            $db->exec("ALTER TABLE {$table} ADD COLUMN voided_at DATETIME DEFAULT NULL AFTER status, ADD COLUMN void_reason VARCHAR(255) DEFAULT NULL AFTER voided_at");
+            say("Upgrade: added {$table}.voided_at / void_reason.");
+        }
+    }
+}
+
 if ($existing > 0 && !$fresh) {
     // schema.sql contains no DROP statements, so re-applying it over an existing schema
     // would just fail on the first CREATE TABLE. Stopping here keeps this script safe
-    // to run unconditionally on every deploy.
-    say("Schema already present ($existing tables) - nothing to do.");
-    say('Use --fresh to drop every table and rebuild (this destroys all data).');
+    // to run unconditionally on every deploy; only the idempotent upgrades run.
+    say("Schema already present ($existing tables).");
+    apply_upgrades($db);
+    say('Upgrades checked. Use --fresh to drop every table and rebuild (this destroys all data).');
     exit(0);
 }
 
@@ -163,6 +202,7 @@ $tables = (int)$db->query(
     'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()'
 )->fetchColumn();
 say("Done. $applied statements applied, $tables tables now present.");
+apply_upgrades($db);
 
 // --- 4. Optional demo data ------------------------------------------------
 if ($withSeed) {

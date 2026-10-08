@@ -71,7 +71,7 @@ if (!$id) {
             </div>
             <div class="form-row">
                 <div class="form-group"><label>Statement Date</label><input type="date" name="statement_date" class="form-control" value="<?= date('Y-m-d') ?>"></div>
-                <div class="form-group"><label>Statement Balance</label><input type="number" step="0.01" name="statement_balance" class="form-control" required></div>
+                <div class="form-group"><label>Statement Balance</label><input type="text" inputmode="decimal" autocomplete="off" name="statement_balance" class="money form-control" required></div>
             </div>
             <button type="submit" class="btn btn-primary">Start Reconciliation</button>
             <a href="reconciliation.php" class="btn btn-outline">Cancel</a>
@@ -151,7 +151,7 @@ include __DIR__ . '/../../includes/header.php';
             </select>
         </div>
         <div class="form-group"><label>Description</label><input type="text" name="description" class="form-control"></div>
-        <div class="form-group"><label>Amount</label><input type="number" step="0.01" name="amount" class="form-control" required></div>
+        <div class="form-group"><label>Amount</label><input type="text" inputmode="decimal" autocomplete="off" name="amount" class="money form-control" required></div>
         <div class="form-group"><button type="submit" class="btn btn-outline">+ Add Item</button></div>
     </form>
     <?php endif; ?>

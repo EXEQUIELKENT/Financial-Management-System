@@ -105,12 +105,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($db->inTransaction()) $db->rollBack();
             flash('error', 'Could not process payment: ' . $e->getMessage());
         }
-    } elseif ($action === 'void' && in_array($dv['status'], ['Draft','PendingApproval','Approved'], true)) {
+    } elseif ($action === 'void' && in_array($dv['status'], ['Draft','PendingApproval','Approved','Paid'], true)) {
         require_permission('disbursement.approve');
-        $db->prepare("UPDATE disbursement_vouchers SET status='Void' WHERE id=?")->execute([$id]);
-        $db->prepare("INSERT INTO dv_approval_history (dv_id, action, actor_id, comments) VALUES (?, 'Void', ?, ?)")->execute([$id, current_user()['id'], $comments]);
-        log_audit('void', 'disbursement', $id, 'Voided DV ' . $dv['dv_no']);
-        flash('success', 'Voucher voided.');
+        $db->beginTransaction();
+        try {
+            $lock = $db->prepare("SELECT status, ap_payment_id, journal_entry_id FROM disbursement_vouchers WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            $cur = $lock->fetch();
+            if ($cur['status'] === 'Void') throw new RuntimeException('This voucher is already void.');
+            if ($cur['status'] === 'Paid') {
+                // Already posted: reverse the entry and the cash movement, and take the
+                // amounts back off the bills it settled.
+                $reason = 'Void of ' . $dv['dv_no'] . ($comments !== '' ? ': ' . $comments : '');
+                if ($cur['ap_payment_id']) void_payment('ap', (int)$cur['ap_payment_id'], current_user()['id'], $reason, true);
+                if ($cur['journal_entry_id']) void_posting((int)$cur['journal_entry_id'], current_user()['id'], $reason);
+            }
+            $db->prepare("UPDATE disbursement_vouchers SET status='Void' WHERE id=?")->execute([$id]);
+            $db->prepare("INSERT INTO dv_approval_history (dv_id, action, actor_id, comments) VALUES (?, 'Void', ?, ?)")->execute([$id, current_user()['id'], $comments]);
+            $db->commit();
+            log_audit('void', 'disbursement', $id, 'Voided DV ' . $dv['dv_no']);
+            flash('success', 'Voucher voided.');
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            flash('error', 'Could not void: ' . $e->getMessage());
+        }
     }
     redirect('modules/disbursement/voucher-view.php?id=' . $id);
 }
@@ -157,7 +175,7 @@ include __DIR__ . '/../../includes/header.php';
             <?php if ($dv['status'] === 'Approved' && has_permission('disbursement.approve')): ?>
                 <form method="post" style="display:inline;"><?= csrf_field() ?><input type="hidden" name="action" value="pay"><button type="submit" class="btn btn-accent" data-confirm="Mark as Paid and post to the GL?">Mark Paid</button></form>
             <?php endif; ?>
-            <?php if (in_array($dv['status'], ['Draft','PendingApproval','Approved'], true) && has_permission('disbursement.approve')): ?>
+            <?php if (in_array($dv['status'], ['Draft','PendingApproval','Approved','Paid'], true) && has_permission('disbursement.approve')): ?>
                 <form method="post" style="display:inline;"><?= csrf_field() ?><input type="hidden" name="action" value="void"><button type="submit" class="btn btn-outline" data-confirm="Void this voucher?">Void</button></form>
             <?php endif; ?>
             <?php if ($dv['status'] === 'Paid'): ?><a href="voucher-print.php?id=<?= $id ?>" class="btn btn-outline" target="_blank">Print</a><?php endif; ?>

@@ -285,6 +285,15 @@ CREATE TABLE ap_vendors (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- Next number per document prefix and year. Locked FOR UPDATE inside the saving
+-- transaction, so numbers are unique and, because a failed save rolls back, gap-free.
+CREATE TABLE document_sequences (
+    prefix VARCHAR(10) NOT NULL,
+    year SMALLINT NOT NULL,
+    last_no INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (prefix, year)
+) ENGINE=InnoDB;
+
 CREATE TABLE ap_bills (
     id INT AUTO_INCREMENT PRIMARY KEY,
     bill_no VARCHAR(30) NOT NULL UNIQUE,
@@ -332,6 +341,9 @@ CREATE TABLE ap_payments (
     reference_no VARCHAR(100) DEFAULT NULL,
     cash_account_id INT NOT NULL,
     journal_entry_id INT DEFAULT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Posted',  -- Posted, Void
+    voided_at DATETIME DEFAULT NULL,
+    void_reason VARCHAR(255) DEFAULT NULL,
     created_by INT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vendor_id) REFERENCES ap_vendors(id),
@@ -414,6 +426,9 @@ CREATE TABLE ar_receipts (
     reference_no VARCHAR(100) DEFAULT NULL,
     cash_account_id INT NOT NULL,
     journal_entry_id INT DEFAULT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Posted',  -- Posted, Void
+    voided_at DATETIME DEFAULT NULL,
+    void_reason VARCHAR(255) DEFAULT NULL,
     created_by INT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES ar_customers(id),

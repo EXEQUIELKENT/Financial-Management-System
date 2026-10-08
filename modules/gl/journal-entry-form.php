@@ -112,8 +112,8 @@ include __DIR__ . '/../../includes/header.php';
                         </select>
                     </td>
                     <td><input type="text" name="memo[]" class="form-control"></td>
-                    <td><input type="number" step="0.01" min="0" name="debit[]" class="form-control jeDebit num" value="0" onchange="calcTotals()"></td>
-                    <td><input type="number" step="0.01" min="0" name="credit[]" class="form-control jeCredit num" value="0" onchange="calcTotals()"></td>
+                    <td><input type="text" inputmode="decimal" autocomplete="off" name="debit[]" class="money form-control jeDebit num" value="0" onchange="calcTotals()"></td>
+                    <td><input type="text" inputmode="decimal" autocomplete="off" name="credit[]" class="money form-control jeCredit num" value="0" onchange="calcTotals()"></td>
                     <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
                 </tr>
                 <?php endfor; ?>
@@ -143,8 +143,8 @@ function addRow() {
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><select name="account_id[]" class="jeAccount">' + accountOptionsHtml + '</select></td>' +
         '<td><input type="text" name="memo[]" class="form-control"></td>' +
-        '<td><input type="number" step="0.01" min="0" name="debit[]" class="form-control jeDebit num" value="0" onchange="calcTotals()"></td>' +
-        '<td><input type="number" step="0.01" min="0" name="credit[]" class="form-control jeCredit num" value="0" onchange="calcTotals()"></td>' +
+        '<td><input type="text" inputmode="decimal" autocomplete="off" name="debit[]" class="money form-control jeDebit num" value="0" onchange="calcTotals()"></td>' +
+        '<td><input type="text" inputmode="decimal" autocomplete="off" name="credit[]" class="money form-control jeCredit num" value="0" onchange="calcTotals()"></td>' +
         '<td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>';
     tbody.appendChild(tr);
 }
@@ -156,8 +156,8 @@ function calcTotals() {
     var debits = document.querySelectorAll('.jeDebit');
     var credits = document.querySelectorAll('.jeCredit');
     var td = 0, tc = 0;
-    debits.forEach(function (d) { td += parseFloat(d.value || 0); });
-    credits.forEach(function (c) { tc += parseFloat(c.value || 0); });
+    debits.forEach(function (d) { td += (parseMoney(d.value) || 0); });
+    credits.forEach(function (c) { tc += (parseMoney(c.value) || 0); });
     document.getElementById('totalDebit').textContent = td.toFixed(2);
     document.getElementById('totalCredit').textContent = tc.toFixed(2);
     var msg = document.getElementById('balanceMsg');
