@@ -6,7 +6,7 @@ $db = get_db();
 $budgets = $db->query("SELECT b.*, bp.name AS period_name, bp.start_date, bp.end_date FROM budgets b JOIN budget_periods bp ON bp.id = b.budget_period_id WHERE b.status='Approved' ORDER BY b.id DESC")->fetchAll();
 
 $budgetId = (int)($_GET['budget_id'] ?? ($budgets[0]['id'] ?? 0));
-$asOfMonth = (int)($_GET['as_of_month'] ?? date('n'));
+$asOfMonth = min(12, max(1, (int)($_GET['as_of_month'] ?? date('n'))));
 
 $rows = [];
 $selectedBudget = null;
@@ -18,11 +18,17 @@ if ($selectedBudget) {
     $lines = $lineStmt->fetchAll();
 
     $periodStart = $selectedBudget['start_date'];
-    $periodEnd = date('Y-m-t', strtotime(date('Y-' . str_pad($asOfMonth, 2, '0', STR_PAD_LEFT) . '-01', strtotime($periodStart))));
+    // "As of" month is the first occurrence of that calendar month on or after the
+    // period start, so a Jul-Jun period "as of Mar" means March of the second year
+    // (previously it pointed before the period began and every actual read zero).
+    $asOfDate = new DateTime(date('Y-m-01', strtotime($periodStart)));
+    for ($i = 0; $i < 12 && (int)$asOfDate->format('n') !== $asOfMonth; $i++) $asOfDate->modify('+1 month');
+    $periodEnd = min($asOfDate->format('Y-m-t'), $selectedBudget['end_date']);
+    $monthIn = implode(',', array_map('intval', budget_months_through($periodStart, $periodEnd))) ?: '0';
 
     foreach ($lines as $l) {
-        $monthStmt = $db->prepare("SELECT COALESCE(SUM(budgeted_amount),0) FROM budget_line_monthly WHERE budget_line_id = ? AND month <= ?");
-        $monthStmt->execute([$l['id'], $asOfMonth]);
+        $monthStmt = $db->prepare("SELECT COALESCE(SUM(budgeted_amount),0) FROM budget_line_monthly WHERE budget_line_id = ? AND month IN ($monthIn)");
+        $monthStmt->execute([$l['id']]);
         $budgeted = (float)$monthStmt->fetchColumn();
 
         $actualStmt = $db->prepare("SELECT COALESCE(SUM(jl.debit),0) AS td, COALESCE(SUM(jl.credit),0) AS tc
@@ -32,7 +38,8 @@ if ($selectedBudget) {
         $a = $actualStmt->fetch();
         $actual = $l['normal_balance'] === 'Debit' ? ($a['td'] - $a['tc']) : ($a['tc'] - $a['td']);
 
-        $variance = $budgeted - $actual;
+        // Positive variance = favorable: under budget for costs, over target for revenue.
+        $variance = $l['account_type'] === 'Revenue' ? $actual - $budgeted : $budgeted - $actual;
         $utilization = $budgeted != 0 ? round($actual / $budgeted * 100, 1) : 0;
 
         $rows[] = [
@@ -91,7 +98,7 @@ include __DIR__ . '/../../includes/header.php';
                 <td class="num"><?= format_currency($r['budgeted']) ?></td>
                 <td class="num"><?= format_currency($r['actual']) ?></td>
                 <td class="num <?= $r['variance'] < 0 ? 'text-danger' : 'text-success' ?>"><?= format_currency($r['variance']) ?></td>
-                <td class="num"><span class="badge <?= $r['utilization'] > 100 ? 'badge-danger' : ($r['utilization'] > 90 ? 'badge-pending' : 'badge-success') ?>"><?= $r['utilization'] ?>%</span></td>
+                <td class="num"><span class="badge <?= $r['type'] === 'Revenue' ? ($r['utilization'] >= 100 ? 'badge-success' : ($r['utilization'] >= 90 ? 'badge-pending' : 'badge-danger')) : ($r['utilization'] > 100 ? 'badge-danger' : ($r['utilization'] > 90 ? 'badge-pending' : 'badge-success')) ?>"><?= $r['utilization'] ?>%</span></td>
             </tr>
         <?php endforeach; ?>
         <?php if (empty($rows)): ?><tr><td colspan="6" class="empty-state">No account lines in this budget.</td></tr><?php endif; ?>

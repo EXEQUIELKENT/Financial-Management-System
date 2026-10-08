@@ -59,6 +59,25 @@ if (APP_ENV === 'production') {
     error_reporting(E_ALL);
 }
 
+// In production an uncaught exception (a rejected database write, say) used to leave
+// the visitor on a blank white page, which reads as "the button does nothing". Log the
+// real error for the administrator and show a plain message with a way back instead.
+if (APP_ENV === 'production' && PHP_SAPI !== 'cli') {
+    set_exception_handler(function (Throwable $e) {
+        error_log('Uncaught ' . get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: text/html; charset=UTF-8');
+        }
+        echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Something went wrong</title></head>'
+           . '<body style="font-family:sans-serif;max-width:560px;margin:60px auto;padding:0 16px;">'
+           . '<h2>Something went wrong</h2><p>Your last action could not be saved. Please check the '
+           . 'values you entered and try again. If it keeps happening, contact your administrator '
+           . '(the details were recorded in the server log).</p>'
+           . '<p><a href="javascript:history.back()">&larr; Go back</a></p></body></html>';
+    });
+}
+
 /**
  * True when the original client request used HTTPS. Behind a load balancer that
  * terminates TLS (which is how the hosted deployment runs) PHP only ever sees a
@@ -121,7 +140,9 @@ define('IDLE_TIMEOUT_SECONDS', (int)env_value('IDLE_TIMEOUT_SECONDS', '1800'));
 define('MAIL_HOST', env_value('MAIL_HOST', 'smtp.gmail.com'));
 define('MAIL_PORT', (int)env_value('MAIL_PORT', '587'));
 define('MAIL_USERNAME', env_value('MAIL_USERNAME', ''));
-define('MAIL_PASSWORD', env_value('MAIL_PASSWORD', ''));
+// Gmail shows App Passwords as "abcd efgh ijkl mnop"; pasted with the spaces (or wrapped
+// in quotes by a hosting dashboard) SMTP auth fails with 535. Neither ever belongs in it.
+define('MAIL_PASSWORD', preg_replace('/\s+/', '', trim((string)env_value('MAIL_PASSWORD', ''), " \t\"'")));
 define('MAIL_ENCRYPTION', env_value('MAIL_ENCRYPTION', 'tls'));
 define('MAIL_FROM_EMAIL', env_value('MAIL_FROM_EMAIL', MAIL_USERNAME ?: 'no-reply@travelcore.local'));
 define('MAIL_FROM_NAME', env_value('MAIL_FROM_NAME', APP_SHORT_NAME));

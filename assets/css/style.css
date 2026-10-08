@@ -427,10 +427,13 @@ body.tour-active { overflow: hidden; }
    content -- so a long peso figure (₱12,345,678.90 at 26px bold) pushed past the
    card edge instead of the card adapting. min-width:0 lets it shrink, and the
    value scales down on narrow cards rather than overflowing. */
-.kpi-card { min-width: 0; }
+.kpi-card { min-width: 0; container-type: inline-size; }
+/* Never break an amount mid-number ("427,96 / 3.00" was unreadable): keep it on one
+   line and size the text to the card's own width instead. */
 .kpi-card .kpi-value {
-    font-size: clamp(18px, 4.2vw, 26px);
-    overflow-wrap: anywhere;
+    font-size: clamp(14px, 9cqi, 26px);
+    white-space: nowrap;
+    overflow-wrap: normal;
     font-variant-numeric: tabular-nums;
 }
 .kpi-card .kpi-label,

@@ -76,11 +76,12 @@ function rec_budget_overrun(PDO $db): ?array {
 
     $worst = null;
     foreach ($activeBudgets as $bud) {
-        $lineStmt = $db->prepare("SELECT bl.id, bl.account_id, a.account_name, a.normal_balance FROM budget_lines bl JOIN coa_accounts a ON a.id = bl.account_id WHERE bl.budget_id = ?");
+        $lineStmt = $db->prepare("SELECT bl.id, bl.account_id, a.account_name, a.normal_balance FROM budget_lines bl JOIN coa_accounts a ON a.id = bl.account_id WHERE bl.budget_id = ? AND a.account_type = 'Expense'");
+        $monthIn = implode(',', array_map('intval', budget_months_through($bud['start_date'], $today))) ?: '0';
         $lineStmt->execute([$bud['id']]);
         foreach ($lineStmt->fetchAll() as $line) {
-            $budgetedStmt = $db->prepare("SELECT COALESCE(SUM(budgeted_amount),0) FROM budget_line_monthly WHERE budget_line_id = ? AND month <= ?");
-            $budgetedStmt->execute([$line['id'], $month]);
+            $budgetedStmt = $db->prepare("SELECT COALESCE(SUM(budgeted_amount),0) FROM budget_line_monthly WHERE budget_line_id = ? AND month IN ($monthIn)");
+            $budgetedStmt->execute([$line['id']]);
             $budgeted = (float)$budgetedStmt->fetchColumn();
             if ($budgeted <= 0) continue;
 

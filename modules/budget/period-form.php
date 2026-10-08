@@ -11,7 +11,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $start = $_POST['start_date'] ?? '';
     $end = $_POST['end_date'] ?? '';
+    $validDate = fn($d) => ($t = DateTime::createFromFormat('!Y-m-d', $d)) && $t->format('Y-m-d') === $d;
     if ($name === '' || !$start || !$end) $errors[] = 'All fields are required.';
+    elseif (mb_strlen($name) > 50) $errors[] = 'Period name must be 50 characters or fewer.';
+    elseif (!$validDate($start) || !$validDate($end)) $errors[] = 'Please enter valid start and end dates.';
+    elseif ($end < $start) $errors[] = 'End date must be on or after the start date.';
     if (empty($errors)) {
         $stmt = $db->prepare("INSERT INTO budget_periods (name, start_date, end_date, status) VALUES (?,?,?,'Open')");
         $stmt->execute([$name, $start, $end]);
@@ -35,10 +39,10 @@ include __DIR__ . '/../../includes/header.php';
     <?php foreach ($errors as $err): ?><div class="alert alert-critical"><?= e($err) ?></div><?php endforeach; ?>
     <form method="post">
         <?= csrf_field() ?>
-        <div class="form-group"><label>Name</label><input type="text" name="name" class="form-control" placeholder="e.g. FY2026" required></div>
+        <div class="form-group"><label>Name</label><input type="text" name="name" class="form-control" placeholder="e.g. FY2026" maxlength="50" value="<?= e($_POST['name'] ?? '') ?>" required></div>
         <div class="form-row">
-            <div class="form-group"><label>Start Date</label><input type="date" name="start_date" class="form-control" value="<?= date('Y-01-01') ?>" required></div>
-            <div class="form-group"><label>End Date</label><input type="date" name="end_date" class="form-control" value="<?= date('Y-12-31') ?>" required></div>
+            <div class="form-group"><label>Start Date</label><input type="date" name="start_date" class="form-control" value="<?= e($_POST['start_date'] ?? date('Y-01-01')) ?>" required></div>
+            <div class="form-group"><label>End Date</label><input type="date" name="end_date" class="form-control" value="<?= e($_POST['end_date'] ?? date('Y-12-31')) ?>" required></div>
         </div>
         <button type="submit" class="btn btn-primary">Save Period</button>
         <a href="periods.php" class="btn btn-outline">Cancel</a>

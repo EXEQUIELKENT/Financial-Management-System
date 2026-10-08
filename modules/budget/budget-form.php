@@ -25,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!$periodOk) $errors[] = 'Please choose an open budget period. Create one under Budget Periods first if none exist.';
         if ($name === '') $errors[] = 'Budget name is required.';
+        elseif (mb_strlen($name) > 150) $errors[] = 'Budget name must be 150 characters or fewer.';
         if (!empty($departmentId)) {
             $dCheck = $db->prepare("SELECT COUNT(*) FROM departments WHERE id = ?");
             $dCheck->execute([$departmentId]);
@@ -38,7 +39,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success', 'Budget created. Add account lines below.');
             redirect('modules/budget/budget-form.php?id=' . $id);
         }
-    } elseif ($action === 'add_line') {
+    } else {
+        // Every other action edits an existing budget: it must exist, and lines and
+        // amounts may only change while it is still a Draft.
+        $bCheck = $db->prepare("SELECT status FROM budgets WHERE id = ?");
+        $bCheck->execute([$id]);
+        $budgetStatus = $bCheck->fetchColumn();
+        if ($budgetStatus === false) {
+            flash('error', 'Budget not found.');
+            redirect('modules/budget/budgets.php');
+        }
+        if ($budgetStatus !== 'Draft') {
+            flash('error', 'This budget is already ' . $budgetStatus . ' and can no longer be changed.');
+            redirect('modules/budget/budget-form.php?id=' . $id);
+        }
+    }
+
+    if ($action === 'add_line') {
         $accountId = (int)($_POST['account_id'] ?? 0);
         $lineError = '';
         if ($accountId <= 0) {
@@ -67,18 +84,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect('modules/budget/budget-form.php?id=' . $id);
     } elseif ($action === 'save_amounts') {
         $amounts = $_POST['amount'] ?? []; // [line_id][month] = amount
-        $stmt = $db->prepare("UPDATE budget_line_monthly SET budgeted_amount = ? WHERE budget_line_id = ? AND month = ?");
-        foreach ($amounts as $lineId => $monthVals) {
+        // Only lines that belong to this budget may be written.
+        $ownStmt = $db->prepare("SELECT bl.id, a.account_code FROM budget_lines bl JOIN coa_accounts a ON a.id = bl.account_id WHERE bl.budget_id = ?");
+        $ownStmt->execute([$id]);
+        $ownLines = $ownStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        // Validate everything first so a bad cell never leaves a half-saved grid.
+        $clean = [];
+        $amountErrors = [];
+        foreach ((array)$amounts as $lineId => $monthVals) {
+            $lineId = (int)$lineId;
+            if (!isset($ownLines[$lineId]) || !is_array($monthVals)) continue;
             foreach ($monthVals as $month => $amt) {
-                $stmt->execute([(float)$amt, (int)$lineId, (int)$month]);
+                $month = (int)$month;
+                if ($month < 1 || $month > 12) continue;
+                $value = parse_amount($amt);
+                $label = $ownLines[$lineId] . ' / ' . $months[$month - 1];
+                if ($value === null) {
+                    $amountErrors[] = "{$label}: \"{$amt}\" is not a valid amount.";
+                } elseif ($value < 0) {
+                    $amountErrors[] = "{$label}: amount cannot be negative.";
+                } elseif ($value > MAX_AMOUNT) {
+                    $amountErrors[] = "{$label}: amount is too large.";
+                } else {
+                    $clean[] = [$value, $lineId, $month];
+                }
             }
         }
+        if ($amountErrors) {
+            flash('error', 'Amounts were not saved. ' . implode(' ', array_slice($amountErrors, 0, 5))
+                . (count($amountErrors) > 5 ? ' (and ' . (count($amountErrors) - 5) . ' more)' : ''));
+            redirect('modules/budget/budget-form.php?id=' . $id);
+        }
+
+        // Upsert, so a line missing some month rows (older data) still saves every month.
+        $stmt = $db->prepare("INSERT INTO budget_line_monthly (budget_line_id, month, budgeted_amount) VALUES (?,?,?)
+                              ON DUPLICATE KEY UPDATE budgeted_amount = VALUES(budgeted_amount)");
+        $db->beginTransaction();
+        foreach ($clean as [$value, $lineId, $month]) {
+            $stmt->execute([$lineId, $month, $value]);
+        }
+        $db->commit();
         log_audit('update', 'budget', $id, 'Updated budget monthly amounts');
         flash('success', 'Budget amounts saved.');
         redirect('modules/budget/budget-form.php?id=' . $id);
     } elseif ($action === 'approve') {
         require_permission('budget.approve');
-        $db->prepare("UPDATE budgets SET status='Approved', approved_by=? WHERE id=?")->execute([current_user()['id'], $id]);
+        $db->prepare("UPDATE budgets SET status='Approved', approved_by=? WHERE id=? AND status='Draft'")->execute([current_user()['id'], $id]);
         log_audit('approve', 'budget', $id, 'Approved budget');
         flash('success', 'Budget approved.');
         redirect('modules/budget/budget-form.php?id=' . $id);
@@ -128,7 +180,7 @@ if (!$id) {
                     <?php foreach ($departments as $d): ?><option value="<?= $d['id'] ?>"><?= e($d['name']) ?></option><?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group"><label>Budget Name</label><input type="text" name="name" class="form-control" placeholder="e.g. Operating Budget" value="<?= e($_POST['name'] ?? '') ?>" required></div>
+            <div class="form-group"><label>Budget Name</label><input type="text" name="name" class="form-control" maxlength="150" placeholder="e.g. Operating Budget" value="<?= e($_POST['name'] ?? '') ?>" required></div>
             <button type="submit" class="btn btn-primary">Create Budget</button>
             <a href="budgets.php" class="btn btn-outline">Cancel</a>
         </form>
@@ -238,9 +290,11 @@ include __DIR__ . '/../../includes/header.php';
                 <tr>
                     <td><?= e($l['account_code'].' - '.$l['account_name']) ?></td>
                     <?php for ($m = 1; $m <= 12; $m++): ?>
-                        <td><input type="number" step="0.01" name="amount[<?= $l['id'] ?>][<?= $m ?>]" class="form-control" style="min-width:80px;" value="<?= e((string)($monthlyByLine[$l['id']][$m] ?? 0)) ?>" <?= $budget['status'] !== 'Draft' ? 'readonly' : '' ?>></td>
+                        <?php // Text, not type="number": a number input silently refuses to submit values
+                              // like 1500.555 or "1,500", and the mouse wheel changes it while scrolling. ?>
+                        <td><input type="text" inputmode="decimal" autocomplete="off" name="amount[<?= $l['id'] ?>][<?= $m ?>]" class="form-control num budget-amount" style="min-width:110px;text-align:right;" value="<?= number_format((float)($monthlyByLine[$l['id']][$m] ?? 0), 2, '.', ',') ?>" <?= $budget['status'] !== 'Draft' ? 'readonly' : '' ?>></td>
                     <?php endfor; ?>
-                    <td class="num" style="font-weight:600;"><?= number_format($total, 2) ?></td>
+                    <td class="num budget-row-total" style="font-weight:600;"><?= number_format($total, 2) ?></td>
                     <?php if ($budget['status'] === 'Draft'): ?>
                     <td>
                         <button form="deleteLineForm<?= $l['id'] ?>" type="submit" class="btn btn-outline btn-sm" data-confirm="Remove this line?">✕</button>
@@ -262,4 +316,21 @@ include __DIR__ . '/../../includes/header.php';
         </form>
     <?php endforeach; ?>
 </div>
+<script>
+// Live row totals; also tidy each cell to "1,234.50" when the user leaves it.
+(function(){
+    function num(v){ v = String(v).replace(/[,\s₱]/g, ''); return v === '' ? 0 : parseFloat(v); }
+    function recalc(row){
+        var t = 0;
+        row.querySelectorAll('.budget-amount').forEach(function(i){ var n = num(i.value); if (isFinite(n)) t += n; });
+        var cell = row.querySelector('.budget-row-total');
+        if (cell) cell.textContent = formatMoney(t);
+    }
+    document.querySelectorAll('.budget-amount').forEach(function(i){
+        i.addEventListener('input', function(){ recalc(i.closest('tr')); });
+        i.addEventListener('blur', function(){ var n = num(i.value); if (isFinite(n)) i.value = formatMoney(n); });
+        i.addEventListener('focus', function(){ if (num(i.value) === 0) i.select(); });
+    });
+})();
+</script>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

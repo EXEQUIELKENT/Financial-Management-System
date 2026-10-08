@@ -22,7 +22,19 @@ $flashes = flash();
     var t=localStorage.getItem('theme');
     if(t)document.documentElement.setAttribute('data-theme',t);
     if(localStorage.getItem('sidebarCollapsed')==='1')document.documentElement.classList.add('sidebar-collapsed');
-})();</script>
+})();
+// Shared money formatter for in-page totals: 1234.5 -> "1,234.50". Defined in <head>
+// because page scripts run before the footer loads main.js.
+function formatMoney(n){
+    n = Number(n); if (!isFinite(n)) n = 0;
+    return n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+// A focused number input changes value when the mouse wheel scrolls over it, which
+// silently alters amounts while the user is just scrolling the page. Drop focus instead.
+document.addEventListener('wheel', function(e){
+    var el = e.target;
+    if (el && el.type === 'number' && el === document.activeElement) el.blur();
+}, {passive: true});</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <?= favicon_tags() ?>
 <title><?= e($pageTitle) ?> - <?= e(APP_SHORT_NAME) ?></title>

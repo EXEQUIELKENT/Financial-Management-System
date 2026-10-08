@@ -31,6 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Please enter a valid email address.';
+    } elseif (!mail_is_configured() && APP_ENV === 'production') {
+        // No code can reach anyone, so do not send visitors to a screen promising one.
+        // This is a server-wide state, so saying so reveals nothing about any account.
+        $error = 'Password reset by email is not available right now. Please contact your administrator to reset your password.';
     } else {
         $user = password_reset_find_user($email);
 

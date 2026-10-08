@@ -22,6 +22,73 @@ function format_currency($amount): string {
     return CURRENCY_SYMBOL . number_format($value, 2, '.', ',');
 }
 
+/**
+ * Parses a user-typed money amount ("1,500", " 1500.50 ", "₱2,000") into a float
+ * rounded to centavos. Returns null when the text is not a number at all, so callers
+ * can reject it instead of a bare (float) cast silently turning "1,500" into 1.
+ */
+function parse_amount($raw): ?float {
+    $s = trim((string)$raw);
+    if ($s === '') return 0.0;
+    $s = str_replace([',', ' ', "\u{00A0}", CURRENCY_SYMBOL, 'PHP'], '', $s);
+    if (!preg_match('/^-?\d+(\.\d+)?$|^-?\.\d+$/', $s)) return null;
+    return round((float)$s, 2);
+}
+
+/** Largest value a DECIMAL(14,2) column can hold. */
+const MAX_AMOUNT = 999999999999.99;
+
+/**
+ * Calendar months (1-12) of a budget period from its start through $asOf, in order,
+ * at most 12. Budget grids store amounts by calendar month (Jan-Dec), so a period
+ * that starts in July yields [7,8,...] rather than [1,2,...].
+ */
+function budget_months_through(string $periodStart, string $asOf): array {
+    $months = [];
+    $d = new DateTime(date('Y-m-01', strtotime($periodStart)));
+    $end = strtotime($asOf);
+    while ($d->getTimestamp() <= $end && count($months) < 12) {
+        $months[] = (int)$d->format('n');
+        $d->modify('+1 month');
+    }
+    return $months;
+}
+
+/**
+ * Year-to-date expense budget vs actual across every Approved budget whose period
+ * covers today. Only expense lines count: utilization is spending against plan, and a
+ * revenue line beating its target is not "overspending". Actuals are limited to the
+ * period itself, so earlier years' postings no longer inflate the figure.
+ * Returns ['budgeted' => float, 'actual' => float, 'budgets' => int].
+ */
+function budget_ytd_totals(): array {
+    $db = get_db();
+    $today = date('Y-m-d');
+    $stmt = $db->prepare("SELECT b.id, bp.start_date FROM budgets b JOIN budget_periods bp ON bp.id=b.budget_period_id
+                           WHERE b.status='Approved' AND ? BETWEEN bp.start_date AND bp.end_date");
+    $stmt->execute([$today]);
+    $budgets = $stmt->fetchAll();
+    $totalBudgeted = 0.0; $totalActual = 0.0;
+    foreach ($budgets as $bud) {
+        $monthIn = implode(',', array_map('intval', budget_months_through($bud['start_date'], $today))) ?: '0';
+        $lineStmt = $db->prepare("SELECT bl.id, bl.account_id, a.normal_balance FROM budget_lines bl JOIN coa_accounts a ON a.id=bl.account_id
+                                   WHERE bl.budget_id=? AND a.account_type='Expense'");
+        $lineStmt->execute([$bud['id']]);
+        foreach ($lineStmt->fetchAll() as $line) {
+            $bStmt = $db->prepare("SELECT COALESCE(SUM(budgeted_amount),0) FROM budget_line_monthly WHERE budget_line_id=? AND month IN ($monthIn)");
+            $bStmt->execute([$line['id']]);
+            $totalBudgeted += (float)$bStmt->fetchColumn();
+            $aStmt = $db->prepare("SELECT COALESCE(SUM(jl.debit),0) AS td, COALESCE(SUM(jl.credit),0) AS tc FROM journal_lines jl
+                                    JOIN journal_entries je ON je.id=jl.journal_entry_id
+                                    WHERE jl.account_id=? AND je.status='Posted' AND je.entry_date BETWEEN ? AND ?");
+            $aStmt->execute([$line['account_id'], $bud['start_date'], $today]);
+            $a = $aStmt->fetch();
+            $totalActual += $line['normal_balance'] === 'Debit' ? ($a['td'] - $a['tc']) : ($a['tc'] - $a['td']);
+        }
+    }
+    return ['budgeted' => round($totalBudgeted, 2), 'actual' => round($totalActual, 2), 'budgets' => count($budgets)];
+}
+
 function format_date($date, string $fmt = 'M d, Y'): string {
     if (empty($date)) return '';
     $ts = is_numeric($date) ? (int)$date : strtotime($date);
