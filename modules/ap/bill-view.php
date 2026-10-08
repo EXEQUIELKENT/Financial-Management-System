@@ -89,6 +89,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_permission('ap.approve');
         $db->beginTransaction();
         try {
+            // A bill with money applied can't be voided: the payments would point at a
+            // void document. Void the payments first (that reopens the bill).
+            $lock = $db->prepare("SELECT status, amount_paid FROM ap_bills WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            $cur = $lock->fetch();
+            if (!in_array($cur['status'], ['Open', 'PartiallyPaid'], true)) throw new RuntimeException('This bill is no longer open.');
+            if ((float)$cur['amount_paid'] > 0) {
+                throw new RuntimeException(format_currency($cur['amount_paid']) . ' has been applied to this bill. Void those payments first.');
+            }
+            $tax = $db->prepare("SELECT COUNT(*) FROM tax_transactions WHERE source_module = 'AP' AND source_id = ? AND direction = 'Input' AND status = 'Remitted'");
+            $tax->execute([$id]);
+            if ((int)$tax->fetchColumn() > 0) throw new RuntimeException('The tax on this bill has already been remitted. Issue a credit note instead of voiding.');
+            $db->prepare("UPDATE tax_transactions SET status = 'Void' WHERE source_module = 'AP' AND source_id = ? AND direction = 'Input' AND status = 'Pending'")->execute([$id]);
             if ($bill['journal_entry_id']) {
                 void_journal_entry((int)$bill['journal_entry_id'], current_user()['id'], 'AP bill void: ' . $bill['bill_no']);
             }

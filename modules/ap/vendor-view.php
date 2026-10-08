@@ -78,7 +78,7 @@ include __DIR__ . '/../../includes/header.php';
     <div class="card-header"><h3>Payments</h3></div>
     <div class="table-wrap">
     <table class="data-table">
-        <thead><tr><th>Payment No.</th><th>Date</th><th>Method</th><th class="num">Amount</th></tr></thead>
+        <thead><tr><th>Payment No.</th><th>Date</th><th>Method</th><th class="num">Amount</th><th>Status</th></tr></thead>
         <tbody>
         <?php foreach ($payments as $p): ?>
             <tr>
@@ -86,9 +86,10 @@ include __DIR__ . '/../../includes/header.php';
                 <td><?= format_date($p['payment_date']) ?></td>
                 <td><?= e($p['payment_method']) ?></td>
                 <td class="num"><?= format_currency($p['amount']) ?></td>
+                <td><span class="badge <?= status_badge_class($p['status']) ?>"><?= e($p['status']) ?></span></td>
             </tr>
         <?php endforeach; ?>
-        <?php if (empty($payments)): ?><tr><td colspan="4" class="empty-state">No payments recorded.</td></tr><?php endif; ?>
+        <?php if (empty($payments)): ?><tr><td colspan="5" class="empty-state">No payments recorded.</td></tr><?php endif; ?>
         </tbody>
     </table>
     </div>

@@ -103,7 +103,7 @@ include __DIR__ . '/../../includes/header.php';
             </select>
         </div>
         <div class="form-row">
-            <div class="form-group"><label>Amount</label><input type="number" step="0.01" min="0" name="amount" class="form-control" required></div>
+            <div class="form-group"><label>Amount</label><input type="text" inputmode="decimal" autocomplete="off" name="amount" class="money form-control" required></div>
             <div class="form-group"><label>Cash Flow Category</label>
                 <select name="cash_flow_category">
                     <?php foreach (['Operating','Investing','Financing'] as $c): ?><option value="<?= $c ?>"><?= $c ?></option><?php endforeach; ?>

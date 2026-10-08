@@ -88,6 +88,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_permission('ar.approve');
         $db->beginTransaction();
         try {
+            // A invoice with money applied can't be voided: the receipts would point at a
+            // void document. Void the receipts first (that reopens the invoice).
+            $lock = $db->prepare("SELECT status, amount_received FROM ar_invoices WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            $cur = $lock->fetch();
+            if (!in_array($cur['status'], ['Open', 'PartiallyPaid'], true)) throw new RuntimeException('This invoice is no longer open.');
+            if ((float)$cur['amount_received'] > 0) {
+                throw new RuntimeException(format_currency($cur['amount_received']) . ' has been applied to this invoice. Void those receipts first.');
+            }
+            $tax = $db->prepare("SELECT COUNT(*) FROM tax_transactions WHERE source_module = 'AR' AND source_id = ? AND direction = 'Output' AND status = 'Remitted'");
+            $tax->execute([$id]);
+            if ((int)$tax->fetchColumn() > 0) throw new RuntimeException('The tax on this invoice has already been remitted. Issue a credit note instead of voiding.');
+            $db->prepare("UPDATE tax_transactions SET status = 'Void' WHERE source_module = 'AR' AND source_id = ? AND direction = 'Output' AND status = 'Pending'")->execute([$id]);
             if ($invoice['journal_entry_id']) {
                 void_journal_entry((int)$invoice['journal_entry_id'], current_user()['id'], 'AR invoice void: ' . $invoice['invoice_no']);
             }

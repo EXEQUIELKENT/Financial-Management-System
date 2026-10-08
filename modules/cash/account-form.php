@@ -116,7 +116,7 @@ include __DIR__ . '/../../includes/header.php';
                 </select>
             </div>
             <?php if (!$id): ?>
-            <div class="form-group"><label>Opening Balance</label><input type="number" step="0.01" min="0" name="opening_balance" class="form-control" value="<?= e((string)$account['opening_balance']) ?>"></div>
+            <div class="form-group"><label>Opening Balance</label><input type="text" inputmode="decimal" autocomplete="off" name="opening_balance" class="money form-control" value="<?= e((string)$account['opening_balance']) ?>"></div>
             <div class="form-group"><label>Funded From (equity)</label>
                 <select name="opening_offset_account_id">
                     <?php foreach ($equityAccounts as $g): ?><option value="<?= $g['id'] ?>" <?= $openingOffsetId===(int)$g['id']?'selected':'' ?>><?= e($g['account_code'].' - '.$g['account_name']) ?></option><?php endforeach; ?>

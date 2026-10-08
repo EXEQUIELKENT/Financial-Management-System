@@ -172,7 +172,7 @@ include __DIR__ . '/../../includes/header.php';
                     <td><?= e($b['bill_no']) ?></td>
                     <td><?= format_date($b['due_date']) ?></td>
                     <td class="num"><?= format_currency($balance) ?></td>
-                    <td class="num"><input type="number" step="0.01" min="0" name="apply[<?= $b['id'] ?>]" class="form-control applyAmt" data-max="<?= $balance ?>" value="0" onchange="calcGross()"></td>
+                    <td class="num"><input type="text" inputmode="decimal" autocomplete="off" name="apply[<?= $b['id'] ?>]" class="money form-control applyAmt" data-max="<?= $balance ?>" value="0" onchange="calcGross()"></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($openBills)): ?><tr><td colspan="4" class="empty-state">No open bills for this vendor.</td></tr><?php endif; ?>
@@ -188,7 +188,7 @@ include __DIR__ . '/../../includes/header.php';
                     <?php foreach ($taxTypes as $t): ?><option value="<?= $t['id'] ?>" data-rate="<?= $t['rate_percent'] ?>"><?= e($t['name']) ?> (<?= $t['rate_percent'] ?>%)</option><?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group"><label>Withheld Amount</label><input type="number" step="0.01" min="0" name="withheld_amount" id="whtAmount" class="form-control" value="0" onchange="calcGross(true)"></div>
+            <div class="form-group"><label>Withheld Amount</label><input type="text" inputmode="decimal" autocomplete="off" name="withheld_amount" id="whtAmount" class="money form-control" value="0" onchange="calcGross(true)"></div>
             <div class="form-group"><label>Net Cash Paid</label><input type="text" id="netDisp" class="form-control" readonly value="0.00"></div>
         </div>
         <button type="submit" class="btn btn-primary">Record Payment</button>
@@ -199,7 +199,7 @@ include __DIR__ . '/../../includes/header.php';
 <script>
 function calcGross(manualWht) {
     var gross = 0;
-    document.querySelectorAll('.applyAmt').forEach(function(i){ gross += parseFloat(i.value || 0); });
+    document.querySelectorAll('.applyAmt').forEach(function(i){ gross += (parseMoney(i.value) || 0); });
     document.getElementById('grossDisp').value = gross.toFixed(2);
     var whtSel = document.getElementById('whtType');
     var whtInput = document.getElementById('whtAmount');
@@ -207,7 +207,7 @@ function calcGross(manualWht) {
         var rate = whtSel.selectedOptions[0] ? parseFloat(whtSel.selectedOptions[0].getAttribute('data-rate') || 0) : 0;
         whtInput.value = (gross * rate / 100).toFixed(2);
     }
-    var net = gross - parseFloat(whtInput.value || 0);
+    var net = gross - (parseMoney(whtInput.value) || 0);
     document.getElementById('netDisp').value = net.toFixed(2);
 }
 if (document.getElementById('paymentForm')) calcGross();

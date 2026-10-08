@@ -138,7 +138,7 @@ include __DIR__ . '/../../includes/header.php';
                     <td><?= e($i['invoice_no']) ?></td>
                     <td><?= format_date($i['due_date']) ?></td>
                     <td class="num"><?= format_currency($balance) ?></td>
-                    <td class="num"><input type="number" step="0.01" min="0" name="apply_invoice[<?= $i['id'] ?>]" class="form-control" value="0" onchange="calcTotal()"></td>
+                    <td class="num"><input type="text" inputmode="decimal" autocomplete="off" name="apply_invoice[<?= $i['id'] ?>]" class="money form-control" value="0" onchange="calcTotal()"></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($openInvoices)): ?><tr><td colspan="4" class="empty-state">Select a customer to see open invoices.</td></tr><?php endif; ?>
@@ -154,7 +154,7 @@ include __DIR__ . '/../../includes/header.php';
                 <tr>
                     <td><input type="text" name="adhoc_description[]" class="form-control"></td>
                     <td><select name="adhoc_account_id[]"><option value="">—</option><?php foreach ($revenueAccounts as $a): ?><option value="<?= $a['id'] ?>"><?= e($a['account_code'].' - '.$a['account_name']) ?></option><?php endforeach; ?></select></td>
-                    <td><input type="number" step="0.01" min="0" name="adhoc_amount[]" class="form-control adhocAmt" value="0" onchange="calcTotal()"></td>
+                    <td><input type="text" inputmode="decimal" autocomplete="off" name="adhoc_amount[]" class="money form-control adhocAmt" value="0" onchange="calcTotal()"></td>
                     <td><button type="button" class="btn btn-outline btn-sm" onclick="removeAdhoc(this)">✕</button></td>
                 </tr>
             </tbody>
@@ -186,8 +186,8 @@ function addAdhoc() {
 function removeAdhoc(btn) { btn.closest('tr').remove(); calcTotal(); }
 function calcTotal() {
     var total = 0;
-    document.querySelectorAll('input[name^="apply_invoice"]').forEach(function(i){ total += parseFloat(i.value || 0); });
-    document.querySelectorAll('.adhocAmt').forEach(function(i){ total += parseFloat(i.value || 0); });
+    document.querySelectorAll('input[name^="apply_invoice"]').forEach(function(i){ total += (parseMoney(i.value) || 0); });
+    document.querySelectorAll('.adhocAmt').forEach(function(i){ total += (parseMoney(i.value) || 0); });
     document.getElementById('totalDisp').value = total.toFixed(2);
 }
 toggleCustomer();

@@ -150,7 +150,7 @@ include __DIR__ . '/../../includes/header.php';
                     <td><?= e($i['invoice_no']) ?></td>
                     <td><?= format_date($i['due_date']) ?></td>
                     <td class="num"><?= format_currency($balance) ?></td>
-                    <td class="num"><input type="number" step="0.01" min="0" name="apply[<?= $i['id'] ?>]" class="form-control applyAmt" value="0" onchange="calcTotal()"></td>
+                    <td class="num"><input type="text" inputmode="decimal" autocomplete="off" name="apply[<?= $i['id'] ?>]" class="money form-control applyAmt" value="0" onchange="calcTotal()"></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($openInvoices)): ?><tr><td colspan="4" class="empty-state">No open invoices for this customer.</td></tr><?php endif; ?>
@@ -166,7 +166,7 @@ include __DIR__ . '/../../includes/header.php';
 <script>
 function calcTotal() {
     var total = 0;
-    document.querySelectorAll('.applyAmt').forEach(function(i){ total += parseFloat(i.value || 0); });
+    document.querySelectorAll('.applyAmt').forEach(function(i){ total += (parseMoney(i.value) || 0); });
     document.getElementById('totalDisp').value = total.toFixed(2);
 }
 calcTotal();

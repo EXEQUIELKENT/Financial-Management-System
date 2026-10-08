@@ -241,21 +241,130 @@ function void_journal_entry(int $entryId, int $userId, string $reason = ''): int
     });
 }
 
-function generate_entry_no(PDO $db): string {
-    $year = date('Y');
-    $stmt = $db->prepare("SELECT COUNT(*) AS cnt FROM journal_entries WHERE entry_no LIKE ?");
-    $stmt->execute(["JE-{$year}-%"]);
-    $cnt = (int)$stmt->fetch()['cnt'] + 1;
-    return sprintf('JE-%s-%05d', $year, $cnt);
+/**
+ * Voids a posted entry and undoes its cash side: books the reversing journal entry,
+ * then for every cash register row recorded with that entry, books the opposite
+ * movement and restores the cash account balance. Returns the reversal entry id.
+ */
+function void_posting(int $entryId, int $userId, string $reason): int {
+    return db_transaction(function (PDO $db) use ($entryId, $userId, $reason) {
+        $reversalId = void_journal_entry($entryId, $userId, $reason);
+        $rows = $db->prepare("SELECT * FROM cash_transactions WHERE journal_entry_id = ?");
+        $rows->execute([$entryId]);
+        $ins = $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, reference, description, source_module, source_id, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+        $bal = $db->prepare("UPDATE cash_accounts SET current_balance = current_balance + ? WHERE id = ?");
+        foreach ($rows->fetchAll() as $r) {
+            $wasInflow = in_array($r['type'], ['Deposit', 'TransferIn'], true);
+            $ins->execute([$r['cash_account_id'], date('Y-m-d'), $wasInflow ? 'Withdrawal' : 'Deposit', $r['amount'], $r['reference'],
+                'Void: ' . ($r['description'] ?? ''), $r['source_module'], $r['source_id'], $r['cash_flow_category'], $reversalId, $userId]);
+            $bal->execute([$wasInflow ? -(float)$r['amount'] : (float)$r['amount'], $r['cash_account_id']]);
+        }
+        return $reversalId;
+    });
 }
 
-function next_document_no(string $prefix, string $table, string $column = 'created_at'): string {
-    $db = get_db();
-    $year = date('Y');
-    $col = $column === 'created_at' ? '' : '';
-    $stmt = $db->query("SELECT COUNT(*) AS cnt FROM {$table} WHERE YEAR(created_at) = {$year}");
-    $cnt = (int)$stmt->fetch()['cnt'] + 1;
-    return sprintf('%s-%s-%05d', $prefix, $year, $cnt);
+/**
+ * Voids an AP payment ('ap') or AR receipt ('ar'): takes the applied amounts back off
+ * the bills/invoices (they return to Open or PartiallyPaid) and marks it Void.
+ *
+ * A payment made through a disbursement voucher or collection receipt shares that
+ * document's journal entry, so it can only be voided by voiding the voucher/receipt,
+ * which calls this with $viaSourceDocument = true and reverses the entry itself.
+ * Otherwise this also reverses the payment's own entry, cash movement and any
+ * withholding tax still Pending (tax already remitted blocks the void).
+ */
+function void_payment(string $kind, int $paymentId, int $userId, string $reason, bool $viaSourceDocument = false): void {
+    [$table, $noCol, $appTable, $appFk, $docFk, $docTable, $paidCol, $srcTable, $srcFk, $srcNoCol, $srcLabel] = $kind === 'ap'
+        ? ['ap_payments', 'payment_no', 'ap_payment_applications', 'payment_id', 'bill_id', 'ap_bills', 'amount_paid', 'disbursement_vouchers', 'ap_payment_id', 'dv_no', 'voucher']
+        : ['ar_receipts', 'receipt_no', 'ar_receipt_applications', 'receipt_id', 'invoice_id', 'ar_invoices', 'amount_received', 'collection_receipts', 'ar_receipt_id', 'cr_no', 'collection receipt'];
+
+    db_transaction(function (PDO $db) use ($kind, $paymentId, $userId, $reason, $viaSourceDocument, $table, $noCol, $appTable, $appFk, $docFk, $docTable, $paidCol, $srcTable, $srcFk, $srcNoCol, $srcLabel) {
+        $sel = $db->prepare("SELECT * FROM {$table} WHERE id = ? FOR UPDATE");
+        $sel->execute([$paymentId]);
+        $pay = $sel->fetch();
+        if (!$pay) throw new RuntimeException('Payment not found.');
+        if ($pay['status'] === 'Void') throw new RuntimeException("{$pay[$noCol]} is already void.");
+
+        if (!$viaSourceDocument) {
+            $src = $db->prepare("SELECT {$srcNoCol} FROM {$srcTable} WHERE {$srcFk} = ?");
+            $src->execute([$paymentId]);
+            if ($srcNo = $src->fetchColumn()) {
+                throw new RuntimeException("{$pay[$noCol]} was made through {$srcLabel} {$srcNo}. Void that {$srcLabel} instead.");
+            }
+            if ($kind === 'ap') {
+                $tax = $db->prepare("SELECT status FROM tax_transactions WHERE source_module = 'AP' AND source_id = ? AND direction = 'Withholding'");
+                $tax->execute([$paymentId]);
+                if (in_array('Remitted', $tax->fetchAll(PDO::FETCH_COLUMN), true)) {
+                    throw new RuntimeException("The withholding tax on {$pay[$noCol]} has already been remitted, so the payment can't be voided.");
+                }
+                $db->prepare("UPDATE tax_transactions SET status = 'Void' WHERE source_module = 'AP' AND source_id = ? AND direction = 'Withholding' AND status = 'Pending'")
+                   ->execute([$paymentId]);
+            }
+            if ($pay['journal_entry_id']) {
+                void_posting((int)$pay['journal_entry_id'], $userId, "Void of {$pay[$noCol]}" . ($reason !== '' ? ": {$reason}" : ''));
+            }
+        }
+
+        $apps = $db->prepare("SELECT {$docFk} AS doc_id, SUM(amount_applied) AS amt FROM {$appTable} WHERE {$appFk} = ? GROUP BY {$docFk}");
+        $apps->execute([$paymentId]);
+        $lock = $db->prepare("SELECT status, {$paidCol} AS paid FROM {$docTable} WHERE id = ? FOR UPDATE");
+        $upd = $db->prepare("UPDATE {$docTable} SET {$paidCol} = ?, status = ? WHERE id = ?");
+        foreach ($apps->fetchAll() as $a) {
+            $lock->execute([$a['doc_id']]);
+            $doc = $lock->fetch();
+            $newPaid = max(0, round((float)$doc['paid'] - (float)$a['amt'], 2));
+            $newStatus = $doc['status'] === 'Void' ? 'Void' : ($newPaid > 0 ? 'PartiallyPaid' : 'Open');
+            $upd->execute([$newPaid, $newStatus, $a['doc_id']]);
+        }
+        $db->prepare("UPDATE {$table} SET status = 'Void', voided_at = NOW(), void_reason = ? WHERE id = ?")
+           ->execute([mb_substr($reason, 0, 255), $paymentId]);
+    });
+}
+
+function generate_entry_no(PDO $db): string {
+    return next_document_no('JE', 'journal_entries');
+}
+
+/** The column holding each table's document number. */
+const DOCUMENT_NO_COLUMNS = [
+    'journal_entries' => 'entry_no',
+    'ap_bills' => 'bill_no',
+    'ap_payments' => 'payment_no',
+    'ar_invoices' => 'invoice_no',
+    'ar_receipts' => 'receipt_no',
+    'collection_receipts' => 'cr_no',
+    'disbursement_vouchers' => 'dv_no',
+    'cash_transfers' => 'transfer_no',
+    'tax_remittances' => 'remittance_no',
+];
+
+/**
+ * Next number in the PREFIX-YEAR-00001 series. The counter row in document_sequences
+ * is locked until the caller's transaction ends, so two saves can't get the same
+ * number, and a failed save rolls the counter back, so the series has no gaps (BIR
+ * expects invoices and receipts in an unbroken series). The counter never falls below
+ * the highest number already in the table, which covers seeded data and older rows
+ * numbered before this table existed.
+ */
+function next_document_no(string $prefix, string $table): string {
+    $column = DOCUMENT_NO_COLUMNS[$table] ?? null;
+    if ($column === null) throw new InvalidArgumentException("No document number column known for {$table}.");
+    return db_transaction(function (PDO $db) use ($prefix, $table, $column) {
+        $year = (int)date('Y');
+        // ON DUPLICATE KEY takes the row's exclusive lock at once. (INSERT IGNORE would take a
+        // shared lock first, and two saves upgrading it to FOR UPDATE deadlock each other.)
+        $db->prepare("INSERT INTO document_sequences (prefix, year, last_no) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE last_no = last_no")->execute([$prefix, $year]);
+        $sel = $db->prepare("SELECT last_no FROM document_sequences WHERE prefix = ? AND year = ? FOR UPDATE");
+        $sel->execute([$prefix, $year]);
+        $last = (int)$sel->fetchColumn();
+
+        $max = $db->prepare("SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX({$column}, '-', -1) AS UNSIGNED)), 0) FROM {$table} WHERE {$column} LIKE ?");
+        $max->execute(["{$prefix}-{$year}-%"]);
+        $next = max($last, (int)$max->fetchColumn()) + 1;
+
+        $db->prepare("UPDATE document_sequences SET last_no = ? WHERE prefix = ? AND year = ?")->execute([$next, $prefix, $year]);
+        return sprintf('%s-%d-%05d', $prefix, $year, $next);
+    });
 }
 
 /** Signed balance per the account's normal_balance convention (Debit or Credit). */

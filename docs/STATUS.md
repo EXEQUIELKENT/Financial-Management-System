@@ -3,7 +3,8 @@
 Last updated: 2026-10-08.
 
 - `fix/otp-budget-numbers`: merged into `main` and pushed (`64807a4`).
-- `fix/money-integrity`: the backlog below, committed locally. Not pushed, not merged.
+- `fix/money-integrity`: merged into `main` and pushed (`1dd5554`).
+- `fix/void-numbering-inputs`: gap-free numbering, voiding payments, amount inputs. Merged into `main` (see git log).
 
 ## Client complaints and outcome
 
@@ -16,9 +17,9 @@ Last updated: 2026-10-08.
 
 ## Deploy checklist
 
-1. Confirm the HostForge build of `main` @ `64807a4` finished (the 20-minute build cap has been hit before).
-2. Set `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_EMAIL` and redeploy. Then use Settings → Send test email.
-3. When `fix/money-integrity` is reviewed: merge into `main`, push, repeat step 1.
+1. Confirm the HostForge build of the latest `main` finished (the 20-minute build cap has been hit before).
+2. `DB_AUTO_MIGRATE=true` must stay on: on boot, `scripts/migrate.php` now applies idempotent upgrades to an existing database (adds `document_sequences`, and `status`/`voided_at`/`void_reason` on `ap_payments` and `ar_receipts`). Check the boot log for `Upgrade:` lines or `Upgrades checked.`
+3. Set `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_EMAIL` and redeploy. Then use Settings → Send test email.
 
 ## `fix/money-integrity`: what changed
 
@@ -45,6 +46,15 @@ Per handler:
 - Reconciliation and tax type: numbers validated (tax rate 0–100).
 - `min="0"` on the non-negative amount inputs.
 
+## `fix/void-numbering-inputs`: what changed
+
+- **Numbering.** `next_document_no()` (`includes/Ledger.php`) uses a counter row per prefix and year in `document_sequences`, locked inside the saving transaction. Numbers are unique under concurrent saves, and a failed save rolls the counter back, so there are no gaps (BIR expects unbroken invoice/receipt series). The counter never falls below the highest existing number, so seeded and older data are safe. Journal entry numbers use the same counter (`JE`).
+- **Voiding follows the usual AP/AR rule**: a bill or invoice with money applied can't be voided. Void the payments first. That reopens the document, and then it can be voided.
+  - AP Payments and AR Receipts lists have a **Void** action (needs `ap.approve` / `ar.approve`, plus a reason). `void_payment()` reverses the entry and the cash movement (`void_posting()`), takes the amounts off the bills or invoices (back to Open/PartiallyPaid), voids withholding tax still Pending, and marks the payment Void. Withholding tax that was already remitted blocks the void.
+  - A payment created by a disbursement voucher or collection receipt is voided by voiding that voucher or receipt. Paid vouchers and Deposited receipts can now be voided, and that reverses everything.
+  - Voiding a bill or invoice also voids its Pending input/output tax rows. If the output tax was already remitted, the void is blocked and the message says to issue a credit note.
+- **Amount inputs** in AP/AR/CR/DV/JE, cash, reconciliation and bill/invoice unit price are text inputs (`class="money"`, `inputmode="decimal"`). They accept `1,500` and tidy to `1,500.00` on blur. Shared `parseMoney()` and the blur/focus handlers are in `includes/header.php`. Quantities and day counts stay numeric.
+
 ## How to test
 
 There is no usable local MySQL (local MariaDB root uses Windows GSSAPI auth). Use Docker:
@@ -55,18 +65,19 @@ cd tests/e2e && npm i && node e2e.js   # headless Chrome, prints PASS/FAIL, scre
 docker compose down                    # add -v to wipe DB
 ```
 
-Demo login: `admin` / `Passw0rd!` (OTP is skipped because compose has no mail). Last run: all 40 checks pass, no JS errors, and the whole ledger balances. Step 9 sends forged POSTs (same session and CSRF token) to prove the server rejects what the browser's `min` would block, and checks the DB directly through `docker compose exec db mariadb`. Rebuild the image after code edits (the code is copied into the image, not mounted).
+Demo login: `admin` / `Passw0rd!` (OTP is skipped because compose has no mail). Last run: all 49 checks pass (three runs in a row), no JS errors, and the whole ledger balances. Step 10 saves 9 bills at once from 3 separate sessions and checks the numbers are unique and consecutive. Step 9 sends forged POSTs (same session and CSRF token) to prove the server rejects what the browser's `min` would block, and checks the DB directly through `docker compose exec db mariadb`. Rebuild the image after code edits (the code is copied into the image, not mounted).
 
 ## Still open / known limits
 
-- Voiding a PartiallyPaid bill or invoice reverses its GL entry but leaves the payments that were applied to it. That behaviour existed before this branch. Deciding what should happen to those payments is a business decision.
-- `next_document_no()` / `generate_entry_no()` count rows to build the next number. Two simultaneous saves can still collide on the UNIQUE number. The transaction now rolls back cleanly and the user sees an error, but the numbering should move to a sequence table.
-- Amount inputs in AP/AR/CR/DV/JE are still `type=number`, so the browser blocks `1,500` before submit. The server accepts it. Switch them to text inputs with `inputmode="decimal"`, as was done for the budget grid, if users complain.
+- No credit/debit notes yet. A posted invoice whose output tax was already remitted can't be voided, and there is no way yet to correct it.
+- `sql/schema-with-seed-data.sql` (the phpMyAdmin dump for XAMPP) predates the new table and columns. After importing it, run `php scripts/migrate.php` once to apply the upgrades.
+- Draft bills, invoices and journal entries use up a number when saved. There is no delete, so the series has no gaps. If a delete is ever added, it should void instead.
 
 ## Gotchas for whoever continues
 
 - PHP sources are CRLF in the working tree and LF in the repo (`autocrlf=true`). Git-Bash `sed -i` strips the CRs, which is harmless (git normalises), but don't mix endings inside one file.
 - Inline page `<script>` blocks run **before** `main.js` (loaded in the footer). Shared JS helpers must live in `includes/header.php`.
 - Never name a constant after a PHP built-in. Check with `php -r 'var_dump(defined("NAME"));'` **inside the Linux container**, not on Windows.
+- Number sequences: lock with `INSERT ... ON DUPLICATE KEY UPDATE`, not `INSERT IGNORE` followed by `SELECT ... FOR UPDATE`. The second deadlocks under concurrent saves (the E2E step 10 caught it).
 - Never call `redirect()` while a transaction is open: it `exit`s before the commit and the work is rolled back. Commit first, then flash and redirect.
 - From Git-Bash, `docker compose exec app php -l /var/www/...` needs `MSYS_NO_PATHCONV=1`, or the path gets rewritten to a Windows path.

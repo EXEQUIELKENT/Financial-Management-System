@@ -105,12 +105,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($db->inTransaction()) $db->rollBack();
             flash('error', 'Could not process deposit: ' . $e->getMessage());
         }
-    } elseif ($action === 'void' && in_array($cr['status'], ['Draft','PendingApproval','Approved'], true)) {
+    } elseif ($action === 'void' && in_array($cr['status'], ['Draft','PendingApproval','Approved','Deposited'], true)) {
         require_permission('collection.approve');
-        $db->prepare("UPDATE collection_receipts SET status='Void' WHERE id=?")->execute([$id]);
-        $db->prepare("INSERT INTO cr_approval_history (cr_id, action, actor_id, comments) VALUES (?, 'Void', ?, ?)")->execute([$id, current_user()['id'], $comments]);
-        log_audit('void', 'collection', $id, 'Voided CR ' . $cr['cr_no']);
-        flash('success', 'Receipt voided.');
+        $db->beginTransaction();
+        try {
+            $lock = $db->prepare("SELECT status, ar_receipt_id, journal_entry_id FROM collection_receipts WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            $cur = $lock->fetch();
+            if ($cur['status'] === 'Void') throw new RuntimeException('This receipt is already void.');
+            if ($cur['status'] === 'Deposited') {
+                // Already posted: reverse the entry and the cash movement, and take the
+                // amounts back off the invoices it settled.
+                $reason = 'Void of ' . $cr['cr_no'] . ($comments !== '' ? ': ' . $comments : '');
+                if ($cur['ar_receipt_id']) void_payment('ar', (int)$cur['ar_receipt_id'], current_user()['id'], $reason, true);
+                if ($cur['journal_entry_id']) void_posting((int)$cur['journal_entry_id'], current_user()['id'], $reason);
+            }
+            $db->prepare("UPDATE collection_receipts SET status='Void' WHERE id=?")->execute([$id]);
+            $db->prepare("INSERT INTO cr_approval_history (cr_id, action, actor_id, comments) VALUES (?, 'Void', ?, ?)")->execute([$id, current_user()['id'], $comments]);
+            $db->commit();
+            log_audit('void', 'collection', $id, 'Voided CR ' . $cr['cr_no']);
+            flash('success', 'Receipt voided.');
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            flash('error', 'Could not void: ' . $e->getMessage());
+        }
     }
     redirect('modules/collection/receipt-view.php?id=' . $id);
 }
@@ -157,7 +175,7 @@ include __DIR__ . '/../../includes/header.php';
             <?php if ($cr['status'] === 'Approved' && has_permission('collection.approve')): ?>
                 <form method="post" style="display:inline;"><?= csrf_field() ?><input type="hidden" name="action" value="deposit"><button type="submit" class="btn btn-accent" data-confirm="Mark as Deposited and post to the GL?">Mark Deposited</button></form>
             <?php endif; ?>
-            <?php if (in_array($cr['status'], ['Draft','PendingApproval','Approved'], true) && has_permission('collection.approve')): ?>
+            <?php if (in_array($cr['status'], ['Draft','PendingApproval','Approved','Deposited'], true) && has_permission('collection.approve')): ?>
                 <form method="post" style="display:inline;"><?= csrf_field() ?><input type="hidden" name="action" value="void"><button type="submit" class="btn btn-outline" data-confirm="Void this receipt?">Void</button></form>
             <?php endif; ?>
             <?php if ($cr['status'] === 'Deposited'): ?><a href="receipt-print.php?id=<?= $id ?>" class="btn btn-outline" target="_blank">Print</a><?php endif; ?>
