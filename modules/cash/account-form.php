@@ -1,12 +1,14 @@
 <?php
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/csrf.php';
+require_once __DIR__ . '/../../includes/Ledger.php';
 require_once __DIR__ . '/../../includes/Audit.php';
 require_permission('cash.create');
 
 $db = get_db();
 $id = isset($_GET['id']) ? (int)$_GET['id'] : (isset($_POST['id']) ? (int)$_POST['id'] : 0);
 $account = ['account_name' => '', 'account_type' => 'Bank', 'bank_name' => '', 'account_no' => '', 'gl_account_id' => '', 'opening_balance' => 0, 'status' => 'Active'];
+$openingOffsetId = 0;
 
 if ($id) {
     $stmt = $db->prepare("SELECT * FROM cash_accounts WHERE id = ?");
@@ -23,11 +25,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $account['bank_name'] = trim($_POST['bank_name'] ?? '');
     $account['account_no'] = trim($_POST['account_no'] ?? '');
     $account['gl_account_id'] = (int)($_POST['gl_account_id'] ?? 0);
-    $account['opening_balance'] = (float)($_POST['opening_balance'] ?? 0);
-    $account['status'] = $_POST['status'] ?? 'Active';
+    $account['status'] = ($_POST['status'] ?? 'Active') === 'Inactive' ? 'Inactive' : 'Active';
 
     if ($account['account_name'] === '') $errors[] = 'Account name is required.';
     if (!$account['gl_account_id']) $errors[] = 'Linked GL account is required.';
+    if (!$id) {
+        // The opening balance is posted to the ledger (Dr. linked GL account, Cr. the chosen
+        // equity account) so the cash register and the general ledger agree from day one.
+        $account['opening_balance'] = parse_nonnegative_amount($_POST['opening_balance'] ?? '', 'Opening balance', $errors) ?? 0;
+        $openingOffsetId = (int)($_POST['opening_offset_account_id'] ?? 0);
+        if ($account['opening_balance'] > 0 && !$openingOffsetId) $errors[] = 'Choose the equity account that funds the opening balance.';
+    }
 
     if (empty($errors)) {
         if ($id) {
@@ -36,17 +44,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_audit('update', 'cash', $id, 'Updated cash account ' . $account['account_name']);
             flash('success', 'Cash account updated.');
         } else {
-            $stmt = $db->prepare("INSERT INTO cash_accounts (account_name, account_type, bank_name, account_no, gl_account_id, opening_balance, current_balance, status) VALUES (?,?,?,?,?,?,?,?)");
-            $stmt->execute([$account['account_name'], $account['account_type'], $account['bank_name'], $account['account_no'], $account['gl_account_id'], $account['opening_balance'], $account['opening_balance'], $account['status']]);
-            $id = (int)$db->lastInsertId();
-            log_audit('create', 'cash', $id, 'Created cash account ' . $account['account_name']);
-            flash('success', 'Cash account created.');
+            $db->beginTransaction();
+            try {
+                $stmt = $db->prepare("INSERT INTO cash_accounts (account_name, account_type, bank_name, account_no, gl_account_id, opening_balance, current_balance, status) VALUES (?,?,?,?,?,?,?,?)");
+                $stmt->execute([$account['account_name'], $account['account_type'], $account['bank_name'], $account['account_no'], $account['gl_account_id'], $account['opening_balance'], $account['opening_balance'], $account['status']]);
+                $id = (int)$db->lastInsertId();
+                if ($account['opening_balance'] > 0) {
+                    post_journal_entry([
+                        'entry_date' => date('Y-m-d'), 'reference' => 'OPEN-' . $id, 'source_module' => 'cash', 'source_id' => $id,
+                        'description' => 'Opening balance - ' . $account['account_name'],
+                        'created_by' => current_user()['id'],
+                        'lines' => [
+                            ['account_id' => $account['gl_account_id'], 'debit' => $account['opening_balance'], 'credit' => 0, 'memo' => 'Opening balance - ' . $account['account_name']],
+                            ['account_id' => $openingOffsetId, 'debit' => 0, 'credit' => $account['opening_balance'], 'memo' => 'Opening balance - ' . $account['account_name']],
+                        ],
+                    ]);
+                }
+                $db->commit();
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) $db->rollBack();
+                $id = 0;
+                $errors[] = 'Could not create cash account: ' . $e->getMessage();
+            }
+            if (empty($errors)) {
+                log_audit('create', 'cash', $id, 'Created cash account ' . $account['account_name']);
+                flash('success', 'Cash account created.');
+            }
         }
-        redirect('modules/cash/accounts.php');
+        if (empty($errors)) redirect('modules/cash/accounts.php');
     }
 }
 
 $glAccounts = $db->query("SELECT id, account_code, account_name FROM coa_accounts WHERE is_active=1 AND account_type='Asset' ORDER BY account_code")->fetchAll();
+$equityAccounts = $db->query("SELECT id, account_code, account_name FROM coa_accounts WHERE is_active=1 AND account_type='Equity' ORDER BY account_code")->fetchAll();
 
 $pageTitle = $id ? 'Edit Cash Account' : 'New Cash Account';
 $pageHelp = [
@@ -56,7 +86,7 @@ $pageHelp = [
 ];
 if (!$id) {
     $pageHelp[] = ['selector' => 'input[name="opening_balance"]',
-        'en' => ['title' => 'Opening Balance', 'body' => 'Only settable when first creating the account — becomes its starting current balance.'],
+        'en' => ['title' => 'Opening Balance', 'body' => 'Only settable when first creating the account — becomes its starting current balance and is posted to the ledger against the equity account you pick.'],
         'tl' => ['title' => 'Opening Balance', 'body' => 'Nasesetan lamang kapag unang ginawa ang account — ito ang magiging panimulang current balance nito.']];
 }
 include __DIR__ . '/../../includes/header.php';
@@ -86,7 +116,12 @@ include __DIR__ . '/../../includes/header.php';
                 </select>
             </div>
             <?php if (!$id): ?>
-            <div class="form-group"><label>Opening Balance</label><input type="number" step="0.01" name="opening_balance" class="form-control" value="<?= e((string)$account['opening_balance']) ?>"></div>
+            <div class="form-group"><label>Opening Balance</label><input type="number" step="0.01" min="0" name="opening_balance" class="form-control" value="<?= e((string)$account['opening_balance']) ?>"></div>
+            <div class="form-group"><label>Funded From (equity)</label>
+                <select name="opening_offset_account_id">
+                    <?php foreach ($equityAccounts as $g): ?><option value="<?= $g['id'] ?>" <?= $openingOffsetId===(int)$g['id']?'selected':'' ?>><?= e($g['account_code'].' - '.$g['account_name']) ?></option><?php endforeach; ?>
+                </select>
+            </div>
             <?php endif; ?>
             <div class="form-group"><label>Status</label>
                 <select name="status">

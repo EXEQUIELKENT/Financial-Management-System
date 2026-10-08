@@ -20,10 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $taxType['code'] = trim($_POST['code'] ?? '');
     $taxType['name'] = trim($_POST['name'] ?? '');
-    $taxType['rate_percent'] = (float)($_POST['rate_percent'] ?? 0);
+    $rate = parse_amount($_POST['rate_percent'] ?? '');
+    $taxType['rate_percent'] = $rate ?? 0;
     $taxType['is_active'] = isset($_POST['is_active']) ? 1 : 0;
 
     if ($taxType['code'] === '' || $taxType['name'] === '') $errors[] = 'Code and name are required.';
+    if ($rate === null || $rate < 0 || $rate > 100) $errors[] = 'Rate must be a number from 0 to 100.';
 
     if (empty($errors)) {
         if ($id) {

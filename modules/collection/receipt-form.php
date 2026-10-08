@@ -18,21 +18,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cashAccountId = (int)$_POST['cash_account_id'];
 
     $lines = [];
-    $applyAmounts = $_POST['apply_invoice'] ?? [];
-    foreach ($applyAmounts as $invoiceId => $amt) {
-        $amt = (float)$amt;
-        if ($amt > 0) $lines[] = ['account_id' => (int)get_setting('ar_control_account_id'), 'description' => 'Collection against invoice', 'amount' => $amt, 'ar_invoice_id' => (int)$invoiceId];
+    $invoiceApplications = parse_amount_map($_POST['apply_invoice'] ?? [], $errors);
+    foreach ($invoiceApplications as $invoiceId => $amt) {
+        $lines[] = ['account_id' => (int)get_setting('ar_control_account_id'), 'description' => 'Collection against invoice', 'amount' => $amt, 'ar_invoice_id' => $invoiceId];
+    }
+    if ($invoiceApplications) {
+        if (!$customerId) {
+            $errors[] = 'Choose the customer whose invoices this receipt pays.';
+        } else {
+            $errors = array_merge($errors, apply_to_open_documents('ar', $customerId, $invoiceApplications, true));
+        }
     }
     $adhocDesc = $_POST['adhoc_description'] ?? [];
     $adhocAccount = $_POST['adhoc_account_id'] ?? [];
     $adhocAmount = $_POST['adhoc_amount'] ?? [];
     foreach ($adhocDesc as $i => $desc) {
-        $amt = (float)($adhocAmount[$i] ?? 0);
-        if ($desc !== '' && !empty($adhocAccount[$i]) && $amt > 0) {
-            $lines[] = ['account_id' => (int)$adhocAccount[$i], 'description' => $desc, 'amount' => $amt, 'ar_invoice_id' => null];
-        }
+        $desc = trim($desc);
+        $amt = parse_amount($adhocAmount[$i] ?? '');
+        if ($desc === '' && empty($adhocAccount[$i]) && !$amt) continue;
+        $rowNo = $i + 1;
+        if ($amt === null || $amt <= 0 || $amt > MAX_AMOUNT) { $errors[] = "Ad hoc line {$rowNo}: amount must be greater than zero."; continue; }
+        if ($desc === '' || empty($adhocAccount[$i])) { $errors[] = "Ad hoc line {$rowNo}: description and account are required."; continue; }
+        $lines[] = ['account_id' => (int)$adhocAccount[$i], 'description' => $desc, 'amount' => $amt, 'ar_invoice_id' => null];
     }
-    $totalAmount = array_sum(array_column($lines, 'amount'));
+    $totalAmount = round(array_sum(array_column($lines, 'amount')), 2);
 
     if ($payerName === '') $errors[] = 'Payer name is required.';
     if (!$cashAccountId) $errors[] = 'Cash/bank account is required.';
@@ -129,7 +138,7 @@ include __DIR__ . '/../../includes/header.php';
                     <td><?= e($i['invoice_no']) ?></td>
                     <td><?= format_date($i['due_date']) ?></td>
                     <td class="num"><?= format_currency($balance) ?></td>
-                    <td class="num"><input type="number" step="0.01" name="apply_invoice[<?= $i['id'] ?>]" class="form-control" value="0" onchange="calcTotal()"></td>
+                    <td class="num"><input type="number" step="0.01" min="0" name="apply_invoice[<?= $i['id'] ?>]" class="form-control" value="0" onchange="calcTotal()"></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($openInvoices)): ?><tr><td colspan="4" class="empty-state">Select a customer to see open invoices.</td></tr><?php endif; ?>
@@ -145,7 +154,7 @@ include __DIR__ . '/../../includes/header.php';
                 <tr>
                     <td><input type="text" name="adhoc_description[]" class="form-control"></td>
                     <td><select name="adhoc_account_id[]"><option value="">—</option><?php foreach ($revenueAccounts as $a): ?><option value="<?= $a['id'] ?>"><?= e($a['account_code'].' - '.$a['account_name']) ?></option><?php endforeach; ?></select></td>
-                    <td><input type="number" step="0.01" name="adhoc_amount[]" class="form-control adhocAmt" value="0" onchange="calcTotal()"></td>
+                    <td><input type="number" step="0.01" min="0" name="adhoc_amount[]" class="form-control adhocAmt" value="0" onchange="calcTotal()"></td>
                     <td><button type="button" class="btn btn-outline btn-sm" onclick="removeAdhoc(this)">✕</button></td>
                 </tr>
             </tbody>

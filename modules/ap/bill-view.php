@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'approve') {
+    if ($action === 'approve' && $bill['status'] === 'Draft') {
         require_permission('ap.approve');
         if ((int)$bill['created_by'] === (int)current_user()['id'] && ($_SESSION['role_name'] ?? '') !== 'Admin') {
             flash('error', 'Segregation of duties: you cannot approve a bill you created yourself.');
@@ -44,7 +44,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $jeLines[] = ['account_id' => $apAccountId, 'debit' => 0, 'credit' => $bill['total_amount'], 'memo' => 'AP - ' . $bill['vendor_name']];
 
+        $db->beginTransaction();
         try {
+            // Lock the bill and re-check it is still Draft so a double submit cannot post it twice.
+            $lock = $db->prepare("SELECT status FROM ap_bills WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            if ($lock->fetchColumn() !== 'Draft') throw new RuntimeException('This bill has already been approved.');
             $entryId = post_journal_entry([
                 'entry_date' => $bill['bill_date'],
                 'reference' => $bill['bill_no'],
@@ -72,21 +77,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $taxStmt->execute([$taxTypeId, 'AP', $id, $bill['bill_date'], $bill['subtotal'], $amt, 'Input']);
             }
 
+            $db->commit();
+
             log_audit('approve', 'ap', $id, 'Approved and posted AP bill ' . $bill['bill_no']);
             flash('success', 'Bill approved and posted to the general ledger.');
         } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
             flash('error', 'Could not post bill: ' . $e->getMessage());
         }
-    } elseif ($action === 'void') {
+    } elseif ($action === 'void' && in_array($bill['status'], ['Open', 'PartiallyPaid'], true)) {
         require_permission('ap.approve');
+        $db->beginTransaction();
         try {
             if ($bill['journal_entry_id']) {
                 void_journal_entry((int)$bill['journal_entry_id'], current_user()['id'], 'AP bill void: ' . $bill['bill_no']);
             }
             $db->prepare("UPDATE ap_bills SET status='Void' WHERE id=?")->execute([$id]);
+            $db->commit();
+
             log_audit('void', 'ap', $id, 'Voided AP bill ' . $bill['bill_no']);
             flash('success', 'Bill voided.');
         } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
             flash('error', 'Could not void bill: ' . $e->getMessage());
         }
     }

@@ -12,20 +12,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $fromId = (int)$_POST['from_cash_account_id'];
     $toId = (int)$_POST['to_cash_account_id'];
-    $amount = (float)($_POST['amount'] ?? 0);
+    $amount = parse_nonnegative_amount($_POST['amount'] ?? '', 'Amount', $errors);
     $transferDate = $_POST['transfer_date'] ?? date('Y-m-d');
     $description = trim($_POST['description'] ?? '');
 
     if (!$fromId || !$toId) $errors[] = 'Both source and destination accounts are required.';
     if ($fromId === $toId) $errors[] = 'Source and destination accounts must be different.';
-    if ($amount <= 0) $errors[] = 'Amount must be greater than zero.';
+    if ($amount !== null && $amount <= 0) $errors[] = 'Amount must be greater than zero.';
+    $acctStmt = $db->prepare("SELECT gl_account_id, account_name, current_balance FROM cash_accounts WHERE id = ? AND status = 'Active'");
+    $acctStmt->execute([$fromId]); $from = $acctStmt->fetch();
+    $acctStmt->execute([$toId]); $to = $acctStmt->fetch();
+    if ($fromId && $toId && (!$from || !$to)) $errors[] = 'Selected cash account was not found or is inactive.';
 
     if (empty($errors)) {
-        $fromAcct = $db->prepare("SELECT gl_account_id, account_name, current_balance FROM cash_accounts WHERE id = ?");
-        $fromAcct->execute([$fromId]); $from = $fromAcct->fetch();
-        $toAcct = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ?");
-        $toAcct->execute([$toId]); $to = $toAcct->fetch();
-
+        $db->beginTransaction();
         try {
             $transferNo = next_document_no('XFER', 'cash_transfers');
             $entryId = post_journal_entry([
@@ -50,11 +50,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, reference, description, source_module, source_id, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
                ->execute([$toId, $transferDate, 'TransferIn', $amount, $transferNo, $description, 'cash', $transferId, 'Financing', $entryId, current_user()['id']]);
 
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $errors[] = 'Could not record transfer: ' . $e->getMessage();
+        }
+        if (empty($errors)) {
             log_audit('create', 'cash', $transferId, 'Recorded cash transfer ' . $transferNo);
             flash('success', 'Transfer recorded and posted to the general ledger.');
             redirect('modules/cash/transfers.php');
-        } catch (Throwable $e) {
-            $errors[] = 'Could not record transfer: ' . $e->getMessage();
         }
     }
 }
@@ -91,7 +95,7 @@ include __DIR__ . '/../../includes/header.php';
             </div>
         </div>
         <div class="form-row">
-            <div class="form-group"><label>Amount</label><input type="number" step="0.01" name="amount" class="form-control" required></div>
+            <div class="form-group"><label>Amount</label><input type="number" step="0.01" min="0" name="amount" class="form-control" required></div>
             <div class="form-group"><label>Date</label><input type="date" name="transfer_date" class="form-control" value="<?= date('Y-m-d') ?>"></div>
         </div>
         <div class="form-group"><label>Description</label><input type="text" name="description" class="form-control"></div>
