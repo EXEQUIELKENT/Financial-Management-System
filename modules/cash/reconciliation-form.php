@@ -14,7 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($formAction === 'create') {
         $cashAccountId = (int)$_POST['cash_account_id'];
         $statementDate = $_POST['statement_date'] ?? date('Y-m-d');
-        $statementBalance = (float)($_POST['statement_balance'] ?? 0);
+        // May be negative (an overdrawn account), but must be a number.
+        $statementBalance = parse_amount($_POST['statement_balance'] ?? '');
+        if ($statementBalance === null || abs($statementBalance) > MAX_AMOUNT) {
+            flash('error', 'Statement balance must be a number.');
+            redirect('modules/cash/reconciliation-form.php');
+        }
         $bookStmt = $db->prepare("SELECT current_balance FROM cash_accounts WHERE id = ?");
         $bookStmt->execute([$cashAccountId]);
         $bookBalance = (float)$bookStmt->fetchColumn();
@@ -25,8 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_audit('create', 'cash', $id, 'Started bank reconciliation');
         redirect('modules/cash/reconciliation-form.php?id=' . $id);
     } elseif ($formAction === 'add_item') {
+        $itemAmount = parse_amount($_POST['amount'] ?? '');
+        if ($itemAmount === null || abs($itemAmount) > MAX_AMOUNT) {
+            flash('error', 'Item amount must be a number.');
+            redirect('modules/cash/reconciliation-form.php?id=' . $id);
+        }
         $db->prepare("INSERT INTO bank_reconciliation_items (reconciliation_id, description, amount, item_type) VALUES (?,?,?,?)")
-           ->execute([$id, trim($_POST['description'] ?? ''), (float)($_POST['amount'] ?? 0), $_POST['item_type'] ?? 'Error']);
+           ->execute([$id, trim($_POST['description'] ?? ''), $itemAmount, $_POST['item_type'] ?? 'Error']);
         redirect('modules/cash/reconciliation-form.php?id=' . $id);
     } elseif ($formAction === 'complete') {
         $db->prepare("UPDATE bank_reconciliations SET status='Completed' WHERE id=?")->execute([$id]);

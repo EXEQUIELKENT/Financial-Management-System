@@ -17,27 +17,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cashAccountId = (int)$_POST['cash_account_id'];
     $applyAmounts = $_POST['apply'] ?? []; // bill_id => amount
     $withholdTaxTypeId = !empty($_POST['withhold_tax_type_id']) ? (int)$_POST['withhold_tax_type_id'] : null;
-    $withheldAmount = (float)($_POST['withheld_amount'] ?? 0);
+    $withheldAmount = parse_nonnegative_amount($_POST['withheld_amount'] ?? '', 'Withheld amount', $errors);
 
-    $applications = [];
-    $grossAmount = 0;
-    foreach ($applyAmounts as $billId => $amt) {
-        $amt = (float)$amt;
-        if ($amt > 0) { $applications[(int)$billId] = $amt; $grossAmount += $amt; }
-    }
+    $applications = parse_amount_map($applyAmounts, $errors);
+    $grossAmount = round(array_sum($applications), 2);
     if (!$vendorId) $errors[] = 'Vendor is required.';
     if (!$cashAccountId) $errors[] = 'Cash/bank account is required.';
     if (empty($applications)) $errors[] = 'Apply the payment to at least one open bill.';
-    if ($withheldAmount > $grossAmount) $errors[] = 'Withheld amount cannot exceed the gross payment amount.';
+    if ($withheldAmount > $grossAmount) {
+        $errors[] = 'Withheld amount cannot exceed the gross payment amount.';
+    } elseif ($withheldAmount > 0) {
+        if (!$withholdTaxTypeId) $errors[] = 'Choose the withholding tax type for the withheld amount.';
+        if (!(int)get_setting('withholding_tax_payable_account_id')) $errors[] = 'Withholding Tax Payable account is not configured. Ask an Admin to set it in Settings.';
+    }
+    if (!(int)get_setting('ap_control_account_id')) $errors[] = 'AP control account is not configured. Ask an Admin to set it in Settings.';
+    if (empty($errors) && $vendorId) {
+        $errors = apply_to_open_documents('ap', $vendorId, $applications, true);
+    }
+
+    $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ? AND status = 'Active'");
+    $cashStmt->execute([$cashAccountId]);
+    $cashAcct = $cashStmt->fetch();
+    if ($cashAccountId && !$cashAcct) $errors[] = 'Selected cash/bank account was not found or is inactive.';
 
     if (empty($errors)) {
         $cashPaid = round($grossAmount - $withheldAmount, 2);
         $apAccountId = (int)get_setting('ap_control_account_id');
         $whtPayableId = $withheldAmount > 0 ? (int)get_setting('withholding_tax_payable_account_id') : null;
-        $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ?");
-        $cashStmt->execute([$cashAccountId]);
-        $cashAcct = $cashStmt->fetch();
 
+        $db->beginTransaction();
         try {
             $paymentNo = next_document_no('APPMT', 'ap_payments');
             $stmt = $db->prepare("INSERT INTO ap_payments (payment_no, vendor_id, payment_date, amount, payment_method, reference_no, cash_account_id, created_by) VALUES (?,?,?,?,?,?,?,?)");
@@ -47,13 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $appStmt = $db->prepare("INSERT INTO ap_payment_applications (payment_id, bill_id, amount_applied) VALUES (?,?,?)");
             foreach ($applications as $billId => $amt) {
                 $appStmt->execute([$paymentId, $billId, $amt]);
-                $bill = $db->prepare("SELECT total_amount, amount_paid FROM ap_bills WHERE id = ?");
-                $bill->execute([$billId]);
-                $b = $bill->fetch();
-                $newPaid = round($b['amount_paid'] + $amt, 2);
-                $newStatus = $newPaid >= (float)$b['total_amount'] - 0.005 ? 'Paid' : 'PartiallyPaid';
-                $db->prepare("UPDATE ap_bills SET amount_paid = ?, status = ? WHERE id = ?")->execute([$newPaid, $newStatus, $billId]);
             }
+            apply_to_open_documents('ap', $vendorId, $applications);
 
             $jeLines = [];
             $jeLines[] = ['account_id' => $apAccountId, 'debit' => $grossAmount, 'credit' => 0, 'memo' => 'AP payment ' . $paymentNo];
@@ -76,16 +79,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, reference, description, source_module, source_id, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
                ->execute([$cashAccountId, $paymentDate, 'Withdrawal', $cashPaid, $paymentNo, 'AP payment', 'ap', $paymentId, 'Operating', $entryId, current_user()['id']]);
 
-            if ($withheldAmount > 0 && $withholdTaxTypeId) {
+            if ($withheldAmount > 0) {
                 $db->prepare("INSERT INTO tax_transactions (tax_type_id, source_module, source_id, transaction_date, taxable_amount, tax_amount, direction, status) VALUES (?,?,?,?,?,?,?,'Pending')")
                    ->execute([$withholdTaxTypeId, 'AP', $paymentId, $paymentDate, $grossAmount, $withheldAmount, 'Withholding']);
             }
 
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $errors[] = 'Could not record payment: ' . $e->getMessage();
+        }
+        if (empty($errors)) {
             log_audit('create', 'ap', $paymentId, 'Recorded AP payment ' . $paymentNo);
             flash('success', 'Payment recorded and posted to the general ledger.');
             redirect('modules/ap/vendor-view.php?id=' . $vendorId);
-        } catch (Throwable $e) {
-            $errors[] = 'Could not record payment: ' . $e->getMessage();
         }
     }
 }
@@ -165,7 +172,7 @@ include __DIR__ . '/../../includes/header.php';
                     <td><?= e($b['bill_no']) ?></td>
                     <td><?= format_date($b['due_date']) ?></td>
                     <td class="num"><?= format_currency($balance) ?></td>
-                    <td class="num"><input type="number" step="0.01" name="apply[<?= $b['id'] ?>]" class="form-control applyAmt" data-max="<?= $balance ?>" value="0" onchange="calcGross()"></td>
+                    <td class="num"><input type="number" step="0.01" min="0" name="apply[<?= $b['id'] ?>]" class="form-control applyAmt" data-max="<?= $balance ?>" value="0" onchange="calcGross()"></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($openBills)): ?><tr><td colspan="4" class="empty-state">No open bills for this vendor.</td></tr><?php endif; ?>
@@ -181,7 +188,7 @@ include __DIR__ . '/../../includes/header.php';
                     <?php foreach ($taxTypes as $t): ?><option value="<?= $t['id'] ?>" data-rate="<?= $t['rate_percent'] ?>"><?= e($t['name']) ?> (<?= $t['rate_percent'] ?>%)</option><?php endforeach; ?>
                 </select>
             </div>
-            <div class="form-group"><label>Withheld Amount</label><input type="number" step="0.01" name="withheld_amount" id="whtAmount" class="form-control" value="0" onchange="calcGross(true)"></div>
+            <div class="form-group"><label>Withheld Amount</label><input type="number" step="0.01" min="0" name="withheld_amount" id="whtAmount" class="form-control" value="0" onchange="calcGross(true)"></div>
             <div class="form-group"><label>Net Cash Paid</label><input type="text" id="netDisp" class="form-control" readonly value="0.00"></div>
         </div>
         <button type="submit" class="btn btn-primary">Record Payment</button>
@@ -203,6 +210,6 @@ function calcGross(manualWht) {
     var net = gross - parseFloat(whtInput.value || 0);
     document.getElementById('netDisp').value = net.toFixed(2);
 }
-calcGross();
+if (document.getElementById('paymentForm')) calcGross();
 </script>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

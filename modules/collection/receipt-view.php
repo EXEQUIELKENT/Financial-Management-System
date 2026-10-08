@@ -44,10 +44,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ?");
         $cashStmt->execute([$cr['cash_account_id']]);
         $cashAcct = $cashStmt->fetch();
+        // Post the sum of the stored (already rounded) lines so the entry always balances.
+        $total = round(array_sum(array_column($lines, 'amount')), 2);
 
+        $db->beginTransaction();
         try {
+            // Lock the receipt and re-check its status so a double submit cannot deposit it twice.
+            $lock = $db->prepare("SELECT status FROM collection_receipts WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            if ($lock->fetchColumn() !== 'Approved') throw new RuntimeException('This receipt is no longer Approved.');
+            if (!$cashAcct) throw new RuntimeException('The receipt\'s cash/bank account no longer exists.');
+
             $jeLines = [];
-            $jeLines[] = ['account_id' => $cashAcct['gl_account_id'], 'debit' => $cr['amount'], 'credit' => 0, 'memo' => 'Cash received - ' . $cashAcct['account_name']];
+            $jeLines[] = ['account_id' => $cashAcct['gl_account_id'], 'debit' => $total, 'credit' => 0, 'memo' => 'Cash received - ' . $cashAcct['account_name']];
             foreach ($lines as $l) {
                 $jeLines[] = ['account_id' => $l['account_id'], 'debit' => 0, 'credit' => $l['amount'], 'memo' => $l['description']];
             }
@@ -63,34 +72,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             $arReceiptId = null;
-            $invoiceLines = array_filter($lines, fn($l) => !empty($l['ar_invoice_id']));
-            if (!empty($invoiceLines) && $cr['customer_id']) {
+            $invoiceApplications = [];
+            foreach ($lines as $l) {
+                if (empty($l['ar_invoice_id'])) continue;
+                $invId = (int)$l['ar_invoice_id'];
+                $invoiceApplications[$invId] = round(($invoiceApplications[$invId] ?? 0) + (float)$l['amount'], 2);
+            }
+            if ($invoiceApplications) {
+                if (!$cr['customer_id']) throw new RuntimeException('This receipt applies to invoices but has no customer.');
                 $receiptNo = next_document_no('ARCPT', 'ar_receipts');
-                $gross = array_sum(array_column($invoiceLines, 'amount'));
+                $gross = round(array_sum($invoiceApplications), 2);
                 $recStmt = $db->prepare("INSERT INTO ar_receipts (receipt_no, customer_id, receipt_date, amount, payment_method, reference_no, cash_account_id, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?)");
                 $recStmt->execute([$receiptNo, $cr['customer_id'], date('Y-m-d'), $gross, 'Collection Receipt', $cr['cr_no'], $cr['cash_account_id'], $entryId, current_user()['id']]);
                 $arReceiptId = (int)$db->lastInsertId();
                 $appStmt = $db->prepare("INSERT INTO ar_receipt_applications (receipt_id, invoice_id, amount_applied) VALUES (?,?,?)");
-                foreach ($invoiceLines as $l) {
-                    $appStmt->execute([$arReceiptId, $l['ar_invoice_id'], $l['amount']]);
-                    $inv = $db->prepare("SELECT total_amount, amount_received FROM ar_invoices WHERE id = ?");
-                    $inv->execute([$l['ar_invoice_id']]);
-                    $i = $inv->fetch();
-                    $newReceived = round($i['amount_received'] + $l['amount'], 2);
-                    $newStatus = $newReceived >= (float)$i['total_amount'] - 0.005 ? 'Paid' : 'PartiallyPaid';
-                    $db->prepare("UPDATE ar_invoices SET amount_received=?, status=? WHERE id=?")->execute([$newReceived, $newStatus, $l['ar_invoice_id']]);
+                foreach ($invoiceApplications as $invId => $amt) {
+                    $appStmt->execute([$arReceiptId, $invId, $amt]);
                 }
+                apply_to_open_documents('ar', (int)$cr['customer_id'], $invoiceApplications);
             }
 
             $db->prepare("UPDATE collection_receipts SET status='Deposited', ar_receipt_id=?, journal_entry_id=? WHERE id=?")->execute([$arReceiptId, $entryId, $id]);
-            $db->prepare("UPDATE cash_accounts SET current_balance = current_balance + ? WHERE id = ?")->execute([$cr['amount'], $cr['cash_account_id']]);
+            $db->prepare("UPDATE cash_accounts SET current_balance = current_balance + ? WHERE id = ?")->execute([$total, $cr['cash_account_id']]);
             $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, reference, description, source_module, source_id, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-               ->execute([$cr['cash_account_id'], date('Y-m-d'), 'Deposit', $cr['amount'], $cr['cr_no'], 'Collection receipt deposit', 'collection', $id, 'Operating', $entryId, current_user()['id']]);
+               ->execute([$cr['cash_account_id'], date('Y-m-d'), 'Deposit', $total, $cr['cr_no'], 'Collection receipt deposit', 'collection', $id, 'Operating', $entryId, current_user()['id']]);
             $db->prepare("INSERT INTO cr_approval_history (cr_id, action, actor_id, comments) VALUES (?, 'Deposited', ?, ?)")->execute([$id, current_user()['id'], $comments]);
+            $db->commit();
 
             log_audit('deposit', 'collection', $id, 'Marked CR ' . $cr['cr_no'] . ' as Deposited');
             flash('success', 'Receipt marked as Deposited and posted to the general ledger.');
         } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
             flash('error', 'Could not process deposit: ' . $e->getMessage());
         }
     } elseif ($action === 'void' && in_array($cr['status'], ['Draft','PendingApproval','Approved'], true)) {

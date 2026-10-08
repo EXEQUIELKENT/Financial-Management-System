@@ -39,6 +39,35 @@ function parse_amount($raw): ?float {
 const MAX_AMOUNT = 999999999999.99;
 
 /**
+ * Parses a single money field that must be zero or more. Returns null (and adds
+ * "<label> must be ..." to $errors) when it is not a number, negative or too large.
+ */
+function parse_nonnegative_amount($raw, string $label, array &$errors): ?float {
+    $amt = parse_amount($raw);
+    if ($amt === null || $amt < 0 || $amt > MAX_AMOUNT) {
+        $errors[] = "{$label} must be a number of zero or more.";
+        return null;
+    }
+    return $amt;
+}
+
+/**
+ * Parses an [id => typed amount] map from a form, such as apply[bill_id]. Blank and
+ * zero entries are dropped. Anything that isn't a number of zero or more adds one error.
+ */
+function parse_amount_map(array $raw, array &$errors): array {
+    $out = [];
+    $bad = false;
+    foreach ($raw as $id => $value) {
+        $amt = parse_amount($value);
+        if ($amt === null || $amt < 0 || $amt > MAX_AMOUNT) { $bad = true; continue; }
+        if ($amt > 0) $out[(int)$id] = $amt;
+    }
+    if ($bad) $errors[] = 'Amounts must be numbers of zero or more.';
+    return $out;
+}
+
+/**
  * Calendar months (1-12) of a budget period from its start through $asOf, in order,
  * at most 12. Budget grids store amounts by calendar month (Jan-Dec), so a period
  * that starts in July yields [7,8,...] rather than [1,2,...].

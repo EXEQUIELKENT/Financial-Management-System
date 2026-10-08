@@ -18,16 +18,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $credits = $_POST['credit'] ?? [];
     $memos = $_POST['memo'] ?? [];
 
+    $activeAccounts = array_map('intval', $db->query("SELECT id FROM coa_accounts WHERE is_active = 1")->fetchAll(PDO::FETCH_COLUMN));
     $lines = [];
     $totalDebit = 0; $totalCredit = 0;
     foreach ($accountIds as $i => $accId) {
-        if (empty($accId)) continue;
-        $d = (float)($debits[$i] ?? 0);
-        $c = (float)($credits[$i] ?? 0);
+        $rowNo = $i + 1;
+        $d = parse_amount($debits[$i] ?? '');
+        $c = parse_amount($credits[$i] ?? '');
+        if ($d === null || $c === null || $d < 0 || $c < 0 || $d > MAX_AMOUNT || $c > MAX_AMOUNT) {
+            $errors[] = "Line {$rowNo}: debit and credit must be numbers of zero or more.";
+            continue;
+        }
+        if (empty($accId)) {
+            if ($d > 0 || $c > 0) $errors[] = "Line {$rowNo}: choose an account.";
+            continue;
+        }
         if ($d == 0 && $c == 0) continue;
+        if ($d > 0 && $c > 0) { $errors[] = "Line {$rowNo}: enter either a debit or a credit, not both."; continue; }
+        if (!in_array((int)$accId, $activeAccounts, true)) { $errors[] = "Line {$rowNo}: the account is inactive or does not exist."; continue; }
         $lines[] = ['account_id' => (int)$accId, 'debit' => $d, 'credit' => $c, 'memo' => $memos[$i] ?? ''];
-        $totalDebit += $d;
-        $totalCredit += $c;
+        $totalDebit = round($totalDebit + $d, 2);
+        $totalCredit = round($totalCredit + $c, 2);
     }
 
     if (count($lines) < 2) $errors[] = 'A journal entry needs at least two lines.';
@@ -101,8 +112,8 @@ include __DIR__ . '/../../includes/header.php';
                         </select>
                     </td>
                     <td><input type="text" name="memo[]" class="form-control"></td>
-                    <td><input type="number" step="0.01" name="debit[]" class="form-control jeDebit num" value="0" onchange="calcTotals()"></td>
-                    <td><input type="number" step="0.01" name="credit[]" class="form-control jeCredit num" value="0" onchange="calcTotals()"></td>
+                    <td><input type="number" step="0.01" min="0" name="debit[]" class="form-control jeDebit num" value="0" onchange="calcTotals()"></td>
+                    <td><input type="number" step="0.01" min="0" name="credit[]" class="form-control jeCredit num" value="0" onchange="calcTotals()"></td>
                     <td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>
                 </tr>
                 <?php endfor; ?>
@@ -132,8 +143,8 @@ function addRow() {
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><select name="account_id[]" class="jeAccount">' + accountOptionsHtml + '</select></td>' +
         '<td><input type="text" name="memo[]" class="form-control"></td>' +
-        '<td><input type="number" step="0.01" name="debit[]" class="form-control jeDebit num" value="0" onchange="calcTotals()"></td>' +
-        '<td><input type="number" step="0.01" name="credit[]" class="form-control jeCredit num" value="0" onchange="calcTotals()"></td>' +
+        '<td><input type="number" step="0.01" min="0" name="debit[]" class="form-control jeDebit num" value="0" onchange="calcTotals()"></td>' +
+        '<td><input type="number" step="0.01" min="0" name="credit[]" class="form-control jeCredit num" value="0" onchange="calcTotals()"></td>' +
         '<td><button type="button" class="btn btn-outline btn-sm" onclick="removeRow(this)">✕</button></td>';
     tbody.appendChild(tr);
 }

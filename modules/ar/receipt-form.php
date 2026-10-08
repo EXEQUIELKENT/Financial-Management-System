@@ -17,22 +17,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cashAccountId = (int)$_POST['cash_account_id'];
     $applyAmounts = $_POST['apply'] ?? [];
 
-    $applications = [];
-    $amount = 0;
-    foreach ($applyAmounts as $invoiceId => $amt) {
-        $amt = (float)$amt;
-        if ($amt > 0) { $applications[(int)$invoiceId] = $amt; $amount += $amt; }
-    }
+    $applications = parse_amount_map($applyAmounts, $errors);
+    $amount = round(array_sum($applications), 2);
     if (!$customerId) $errors[] = 'Customer is required.';
     if (!$cashAccountId) $errors[] = 'Cash/bank account is required.';
     if (empty($applications)) $errors[] = 'Apply the receipt to at least one open invoice.';
+    if (!(int)get_setting('ar_control_account_id')) $errors[] = 'AR control account is not configured. Ask an Admin to set it in Settings.';
+    if (empty($errors)) {
+        $errors = apply_to_open_documents('ar', $customerId, $applications, true);
+    }
+
+    $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ? AND status = 'Active'");
+    $cashStmt->execute([$cashAccountId]);
+    $cashAcct = $cashStmt->fetch();
+    if ($cashAccountId && !$cashAcct) $errors[] = 'Selected cash/bank account was not found or is inactive.';
 
     if (empty($errors)) {
         $arAccountId = (int)get_setting('ar_control_account_id');
-        $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ?");
-        $cashStmt->execute([$cashAccountId]);
-        $cashAcct = $cashStmt->fetch();
 
+        $db->beginTransaction();
         try {
             $receiptNo = next_document_no('ARCPT', 'ar_receipts');
             $stmt = $db->prepare("INSERT INTO ar_receipts (receipt_no, customer_id, receipt_date, amount, payment_method, reference_no, cash_account_id, created_by) VALUES (?,?,?,?,?,?,?,?)");
@@ -42,13 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $appStmt = $db->prepare("INSERT INTO ar_receipt_applications (receipt_id, invoice_id, amount_applied) VALUES (?,?,?)");
             foreach ($applications as $invoiceId => $amt) {
                 $appStmt->execute([$receiptId, $invoiceId, $amt]);
-                $inv = $db->prepare("SELECT total_amount, amount_received FROM ar_invoices WHERE id = ?");
-                $inv->execute([$invoiceId]);
-                $i = $inv->fetch();
-                $newReceived = round($i['amount_received'] + $amt, 2);
-                $newStatus = $newReceived >= (float)$i['total_amount'] - 0.005 ? 'Paid' : 'PartiallyPaid';
-                $db->prepare("UPDATE ar_invoices SET amount_received = ?, status = ? WHERE id = ?")->execute([$newReceived, $newStatus, $invoiceId]);
             }
+            apply_to_open_documents('ar', $customerId, $applications);
 
             $entryId = post_journal_entry([
                 'entry_date' => $receiptDate,
@@ -68,11 +66,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, reference, description, source_module, source_id, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
                ->execute([$cashAccountId, $receiptDate, 'Deposit', $amount, $receiptNo, 'AR receipt', 'ar', $receiptId, 'Operating', $entryId, current_user()['id']]);
 
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $errors[] = 'Could not record receipt: ' . $e->getMessage();
+        }
+        if (empty($errors)) {
             log_audit('create', 'ar', $receiptId, 'Recorded AR receipt ' . $receiptNo);
             flash('success', 'Receipt recorded and posted to the general ledger.');
             redirect('modules/ar/customer-view.php?id=' . $customerId);
-        } catch (Throwable $e) {
-            $errors[] = 'Could not record receipt: ' . $e->getMessage();
         }
     }
 }
@@ -148,7 +150,7 @@ include __DIR__ . '/../../includes/header.php';
                     <td><?= e($i['invoice_no']) ?></td>
                     <td><?= format_date($i['due_date']) ?></td>
                     <td class="num"><?= format_currency($balance) ?></td>
-                    <td class="num"><input type="number" step="0.01" name="apply[<?= $i['id'] ?>]" class="form-control applyAmt" value="0" onchange="calcTotal()"></td>
+                    <td class="num"><input type="number" step="0.01" min="0" name="apply[<?= $i['id'] ?>]" class="form-control applyAmt" value="0" onchange="calcTotal()"></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($openInvoices)): ?><tr><td colspan="4" class="empty-state">No open invoices for this customer.</td></tr><?php endif; ?>

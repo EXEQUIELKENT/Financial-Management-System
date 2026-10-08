@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'approve') {
+    if ($action === 'approve' && $invoice['status'] === 'Draft') {
         require_permission('ar.approve');
         if ((int)$invoice['created_by'] === (int)current_user()['id'] && ($_SESSION['role_name'] ?? '') !== 'Admin') {
             flash('error', 'Segregation of duties: you cannot approve an invoice you created yourself.');
@@ -44,7 +44,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $jeLines[] = ['account_id' => $outputTaxAccountId, 'debit' => 0, 'credit' => $invoice['tax_amount'], 'memo' => 'Output tax on ' . $invoice['invoice_no']];
         }
 
+        $db->beginTransaction();
         try {
+            // Lock the invoice and re-check it is still Draft so a double submit cannot post it twice.
+            $lock = $db->prepare("SELECT status FROM ar_invoices WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            if ($lock->fetchColumn() !== 'Draft') throw new RuntimeException('This invoice has already been approved.');
             $entryId = post_journal_entry([
                 'entry_date' => $invoice['invoice_date'],
                 'reference' => $invoice['invoice_no'],
@@ -71,21 +76,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $taxStmt->execute([$taxTypeId, 'AR', $id, $invoice['invoice_date'], $invoice['subtotal'], $amt, 'Output']);
             }
 
+            $db->commit();
+
             log_audit('approve', 'ar', $id, 'Approved and posted AR invoice ' . $invoice['invoice_no']);
             flash('success', 'Invoice approved and posted to the general ledger.');
         } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
             flash('error', 'Could not post invoice: ' . $e->getMessage());
         }
-    } elseif ($action === 'void') {
+    } elseif ($action === 'void' && in_array($invoice['status'], ['Open', 'PartiallyPaid'], true)) {
         require_permission('ar.approve');
+        $db->beginTransaction();
         try {
             if ($invoice['journal_entry_id']) {
                 void_journal_entry((int)$invoice['journal_entry_id'], current_user()['id'], 'AR invoice void: ' . $invoice['invoice_no']);
             }
             $db->prepare("UPDATE ar_invoices SET status='Void' WHERE id=?")->execute([$id]);
+            $db->commit();
+
             log_audit('void', 'ar', $id, 'Voided AR invoice ' . $invoice['invoice_no']);
             flash('success', 'Invoice voided.');
         } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
             flash('error', 'Could not void invoice: ' . $e->getMessage());
         }
     }

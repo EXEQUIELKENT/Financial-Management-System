@@ -44,13 +44,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ?");
         $cashStmt->execute([$dv['cash_account_id']]);
         $cashAcct = $cashStmt->fetch();
+        // Post the sum of the stored (already rounded) lines so the entry always balances.
+        $total = round(array_sum(array_column($lines, 'amount')), 2);
 
+        $db->beginTransaction();
         try {
+            // Lock the voucher and re-check its status so a double submit cannot pay it twice.
+            $lock = $db->prepare("SELECT status FROM disbursement_vouchers WHERE id = ? FOR UPDATE");
+            $lock->execute([$id]);
+            if ($lock->fetchColumn() !== 'Approved') throw new RuntimeException('This voucher is no longer Approved.');
+            if (!$cashAcct) throw new RuntimeException('The voucher\'s cash/bank account no longer exists.');
+
             $jeLines = [];
             foreach ($lines as $l) {
                 $jeLines[] = ['account_id' => $l['account_id'], 'debit' => $l['amount'], 'credit' => 0, 'memo' => $l['description']];
             }
-            $jeLines[] = ['account_id' => $cashAcct['gl_account_id'], 'debit' => 0, 'credit' => $dv['amount'], 'memo' => 'Cash paid - ' . $cashAcct['account_name']];
+            $jeLines[] = ['account_id' => $cashAcct['gl_account_id'], 'debit' => 0, 'credit' => $total, 'memo' => 'Cash paid - ' . $cashAcct['account_name']];
 
             $entryId = post_journal_entry([
                 'entry_date' => date('Y-m-d'),
@@ -63,34 +72,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             $apPaymentId = null;
-            $billLines = array_filter($lines, fn($l) => !empty($l['ap_bill_id']));
-            if (!empty($billLines) && $dv['vendor_id']) {
+            $billApplications = [];
+            foreach ($lines as $l) {
+                if (empty($l['ap_bill_id'])) continue;
+                $billId = (int)$l['ap_bill_id'];
+                $billApplications[$billId] = round(($billApplications[$billId] ?? 0) + (float)$l['amount'], 2);
+            }
+            if ($billApplications) {
+                if (!$dv['vendor_id']) throw new RuntimeException('This voucher settles bills but has no vendor.');
                 $paymentNo = next_document_no('APPMT', 'ap_payments');
-                $gross = array_sum(array_column($billLines, 'amount'));
+                $gross = round(array_sum($billApplications), 2);
                 $payStmt = $db->prepare("INSERT INTO ap_payments (payment_no, vendor_id, payment_date, amount, payment_method, reference_no, cash_account_id, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?)");
                 $payStmt->execute([$paymentNo, $dv['vendor_id'], date('Y-m-d'), $gross, 'Disbursement Voucher', $dv['dv_no'], $dv['cash_account_id'], $entryId, current_user()['id']]);
                 $apPaymentId = (int)$db->lastInsertId();
                 $appStmt = $db->prepare("INSERT INTO ap_payment_applications (payment_id, bill_id, amount_applied) VALUES (?,?,?)");
-                foreach ($billLines as $l) {
-                    $appStmt->execute([$apPaymentId, $l['ap_bill_id'], $l['amount']]);
-                    $bill = $db->prepare("SELECT total_amount, amount_paid FROM ap_bills WHERE id = ?");
-                    $bill->execute([$l['ap_bill_id']]);
-                    $b = $bill->fetch();
-                    $newPaid = round($b['amount_paid'] + $l['amount'], 2);
-                    $newStatus = $newPaid >= (float)$b['total_amount'] - 0.005 ? 'Paid' : 'PartiallyPaid';
-                    $db->prepare("UPDATE ap_bills SET amount_paid=?, status=? WHERE id=?")->execute([$newPaid, $newStatus, $l['ap_bill_id']]);
+                foreach ($billApplications as $billId => $amt) {
+                    $appStmt->execute([$apPaymentId, $billId, $amt]);
                 }
+                apply_to_open_documents('ap', (int)$dv['vendor_id'], $billApplications);
             }
 
             $db->prepare("UPDATE disbursement_vouchers SET status='Paid', ap_payment_id=?, journal_entry_id=? WHERE id=?")->execute([$apPaymentId, $entryId, $id]);
-            $db->prepare("UPDATE cash_accounts SET current_balance = current_balance - ? WHERE id = ?")->execute([$dv['amount'], $dv['cash_account_id']]);
+            $db->prepare("UPDATE cash_accounts SET current_balance = current_balance - ? WHERE id = ?")->execute([$total, $dv['cash_account_id']]);
             $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, reference, description, source_module, source_id, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-               ->execute([$dv['cash_account_id'], date('Y-m-d'), 'Withdrawal', $dv['amount'], $dv['dv_no'], 'Disbursement voucher payment', 'disbursement', $id, 'Operating', $entryId, current_user()['id']]);
+               ->execute([$dv['cash_account_id'], date('Y-m-d'), 'Withdrawal', $total, $dv['dv_no'], 'Disbursement voucher payment', 'disbursement', $id, 'Operating', $entryId, current_user()['id']]);
             $db->prepare("INSERT INTO dv_approval_history (dv_id, action, actor_id, comments) VALUES (?, 'Paid', ?, ?)")->execute([$id, current_user()['id'], $comments]);
+            $db->commit();
 
             log_audit('pay', 'disbursement', $id, 'Marked DV ' . $dv['dv_no'] . ' as Paid');
             flash('success', 'Voucher marked as Paid and posted to the general ledger.');
         } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
             flash('error', 'Could not process payment: ' . $e->getMessage());
         }
     } elseif ($action === 'void' && in_array($dv['status'], ['Draft','PendingApproval','Approved'], true)) {

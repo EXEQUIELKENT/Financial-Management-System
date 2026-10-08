@@ -11,7 +11,8 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $taxTypeId = (int)$_POST['tax_type_id'];
-    $direction = $_POST['direction'] ?? 'Output';
+    // Input tax is claimed as credit, never remitted, so only these two are valid here.
+    $direction = ($_POST['direction'] ?? 'Output') === 'Withholding' ? 'Withholding' : 'Output';
     $periodStart = $_POST['period_start'] ?? date('Y-m-01');
     $periodEnd = $_POST['period_end'] ?? date('Y-m-d');
     $cashAccountId = (int)$_POST['cash_account_id'];
@@ -19,17 +20,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pendingStmt = $db->prepare("SELECT * FROM tax_transactions WHERE tax_type_id = ? AND direction = ? AND status = 'Pending' AND transaction_date BETWEEN ? AND ?");
     $pendingStmt->execute([$taxTypeId, $direction, $periodStart, $periodEnd]);
     $pending = $pendingStmt->fetchAll();
-    $totalAmount = array_sum(array_column($pending, 'tax_amount'));
+    $totalAmount = round(array_sum(array_column($pending, 'tax_amount')), 2);
 
     if (!$cashAccountId) $errors[] = 'Cash/bank account is required.';
     if (empty($pending)) $errors[] = 'No pending tax transactions found for this type/direction/period.';
+    $payableAccountId = (int)get_setting($direction === 'Withholding' ? 'withholding_tax_payable_account_id' : 'output_tax_account_id');
+    if (!$payableAccountId) $errors[] = ($direction === 'Withholding' ? 'Withholding Tax Payable' : 'Output Tax') . ' account is not configured. Ask an Admin to set it in Settings.';
+    $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ? AND status = 'Active'");
+    $cashStmt->execute([$cashAccountId]);
+    $cashAcct = $cashStmt->fetch();
+    if ($cashAccountId && !$cashAcct) $errors[] = 'Selected cash/bank account was not found or is inactive.';
 
     if (empty($errors)) {
-        $payableAccountId = (int)get_setting($direction === 'Withholding' ? 'withholding_tax_payable_account_id' : 'output_tax_account_id');
-        $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ?");
-        $cashStmt->execute([$cashAccountId]);
-        $cashAcct = $cashStmt->fetch();
-
+        $db->beginTransaction();
         try {
             $remittanceNo = next_document_no('REM', 'tax_remittances');
             $entryId = post_journal_entry([
@@ -46,18 +49,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$remittanceNo, $taxTypeId, $periodStart, $periodEnd, $totalAmount, date('Y-m-d'), $entryId, current_user()['id']]);
             $remittanceId = (int)$db->lastInsertId();
 
-            $updateStmt = $db->prepare("UPDATE tax_transactions SET status='Remitted', remittance_id=? WHERE id=?");
-            foreach ($pending as $p) { $updateStmt->execute([$remittanceId, $p['id']]); }
+            // Only rows still Pending: two remittances must not claim the same tax.
+            $updateStmt = $db->prepare("UPDATE tax_transactions SET status='Remitted', remittance_id=? WHERE id=? AND status='Pending'");
+            foreach ($pending as $p) {
+                $updateStmt->execute([$remittanceId, $p['id']]);
+                if ($updateStmt->rowCount() !== 1) throw new RuntimeException('Some of these tax transactions were already remitted. Reload and try again.');
+            }
 
             $db->prepare("UPDATE cash_accounts SET current_balance = current_balance - ? WHERE id = ?")->execute([$totalAmount, $cashAccountId]);
             $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, reference, description, source_module, source_id, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
                ->execute([$cashAccountId, date('Y-m-d'), 'Withdrawal', $totalAmount, $remittanceNo, 'Tax remittance', 'tax', $remittanceId, 'Operating', $entryId, current_user()['id']]);
 
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $errors[] = 'Could not record remittance: ' . $e->getMessage();
+        }
+        if (empty($errors)) {
             log_audit('create', 'tax', $remittanceId, 'Recorded tax remittance ' . $remittanceNo);
             flash('success', 'Tax remittance recorded and posted to the general ledger.');
             redirect('modules/tax/remittances.php');
-        } catch (Throwable $e) {
-            $errors[] = 'Could not record remittance: ' . $e->getMessage();
         }
     }
 }

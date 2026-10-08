@@ -12,20 +12,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $cashAccountId = (int)$_POST['cash_account_id'];
     $offsetAccountId = (int)$_POST['offset_account_id'];
-    $type = $_POST['type'] ?? 'Deposit';
-    $amount = (float)($_POST['amount'] ?? 0);
+    $type = ($_POST['type'] ?? 'Deposit') === 'Withdrawal' ? 'Withdrawal' : 'Deposit';
+    $amount = parse_nonnegative_amount($_POST['amount'] ?? '', 'Amount', $errors);
     $txDate = $_POST['transaction_date'] ?? date('Y-m-d');
     $description = trim($_POST['description'] ?? '');
     $category = $_POST['cash_flow_category'] ?? 'Operating';
 
     if (!$cashAccountId) $errors[] = 'Cash account is required.';
     if (!$offsetAccountId) $errors[] = 'Offset account is required.';
-    if ($amount <= 0) $errors[] = 'Amount must be greater than zero.';
+    if ($amount !== null && $amount <= 0) $errors[] = 'Amount must be greater than zero.';
+    $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ? AND status = 'Active'");
+    $cashStmt->execute([$cashAccountId]);
+    $cashAcct = $cashStmt->fetch();
+    if ($cashAccountId && !$cashAcct) $errors[] = 'Selected cash account was not found or is inactive.';
 
     if (empty($errors)) {
-        $cashStmt = $db->prepare("SELECT gl_account_id, account_name FROM cash_accounts WHERE id = ?");
-        $cashStmt->execute([$cashAccountId]);
-        $cashAcct = $cashStmt->fetch();
 
         $isInflow = $type === 'Deposit';
         // The description typed here must survive into the general ledger: when the
@@ -36,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? [['account_id' => $cashAcct['gl_account_id'], 'debit' => $amount, 'credit' => 0, 'memo' => $effectiveDescription], ['account_id' => $offsetAccountId, 'debit' => 0, 'credit' => $amount, 'memo' => $effectiveDescription]]
             : [['account_id' => $offsetAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $effectiveDescription], ['account_id' => $cashAcct['gl_account_id'], 'debit' => 0, 'credit' => $amount, 'memo' => $effectiveDescription]];
 
+        $db->beginTransaction();
         try {
             $entryId = post_journal_entry([
                 'entry_date' => $txDate, 'reference' => '', 'source_module' => 'cash', 'source_id' => null,
@@ -45,11 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("INSERT INTO cash_transactions (cash_account_id, transaction_date, type, amount, description, cash_flow_category, journal_entry_id, created_by) VALUES (?,?,?,?,?,?,?,?)")
                ->execute([$cashAccountId, $txDate, $type, $amount, $effectiveDescription, $category, $entryId, current_user()['id']]);
             $db->prepare("UPDATE cash_accounts SET current_balance = current_balance " . ($isInflow ? '+' : '-') . " ? WHERE id = ?")->execute([$amount, $cashAccountId]);
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            $errors[] = 'Could not record transaction: ' . $e->getMessage();
+        }
+        if (empty($errors)) {
             log_audit('create', 'cash', $cashAccountId, "Recorded $type of $amount");
             flash('success', 'Cash transaction recorded and posted to the general ledger.');
             redirect('modules/cash/account-register.php?id=' . $cashAccountId);
-        } catch (Throwable $e) {
-            $errors[] = 'Could not record transaction: ' . $e->getMessage();
         }
     }
 }
@@ -97,7 +103,7 @@ include __DIR__ . '/../../includes/header.php';
             </select>
         </div>
         <div class="form-row">
-            <div class="form-group"><label>Amount</label><input type="number" step="0.01" name="amount" class="form-control" required></div>
+            <div class="form-group"><label>Amount</label><input type="number" step="0.01" min="0" name="amount" class="form-control" required></div>
             <div class="form-group"><label>Cash Flow Category</label>
                 <select name="cash_flow_category">
                     <?php foreach (['Operating','Investing','Financing'] as $c): ?><option value="<?= $c ?>"><?= $c ?></option><?php endforeach; ?>

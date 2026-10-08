@@ -1,4 +1,6 @@
 const { chromium } = require('playwright-core');
+const { execSync } = require('child_process');
+const ROOT = require('path').resolve(__dirname, '../..');
 const BASE = process.env.E2E_BASE || 'http://localhost:8080';
 const SHOTS = __dirname + '/shots/';
 const results = [];
@@ -139,6 +141,95 @@ const check = (name, ok, extra = '') => { results.push(`${ok ? 'PASS' : 'FAIL'} 
     const vr = await page.innerText('body');
     check('variance report renders', /budgeted/i.test(vr), vr.replace(/\s+/g, ' ').slice(0, 300));
     await page.screenshot({ path: SHOTS + '5-variance.png', fullPage: true });
+
+    // 9. Money integrity. Forged POSTs (same session + CSRF token) send what the
+    // browser's min/max attributes would block, to prove the server rejects it too.
+    const sql = q => execSync(`docker compose exec -T db mariadb -N -utravelcore -ptravelcore travelcore_fms -e "${q}"`, { cwd: ROOT }).toString().trim();
+    await page.goto(BASE + '/modules/ap/payment-form.php?vendor_id=1');
+    const csrf = await page.locator('input[name=csrf_token]').first().getAttribute('value');
+    const post = async (path, fields) => {
+      const body = new URLSearchParams([['csrf_token', csrf], ...fields]);
+      const r = await page.request.post(BASE + path, { headers: { 'content-type': 'application/x-www-form-urlencoded' }, data: body.toString() });
+      const html = await r.text();
+      const alerts = [...html.matchAll(/class="alert[^"]*"[^>]*>([\s\S]*?)<\/div>/g)].map(m => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()).join(' | ');
+      return { url: r.url(), alerts };
+    };
+    const [billId, vendorId, billBal] = sql("SELECT id, vendor_id, total_amount-amount_paid FROM ap_bills WHERE status IN ('Open','PartiallyPaid') ORDER BY id LIMIT 1").split('\t');
+    const otherBill = sql(`SELECT id FROM ap_bills WHERE status IN ('Open','PartiallyPaid') AND vendor_id <> ${vendorId} LIMIT 1`);
+    const paidBefore = sql(`SELECT amount_paid FROM ap_bills WHERE id = ${billId}`);
+    const pay = extra => post('/modules/ap/payment-form.php', [['vendor_id', vendorId], ['cash_account_id', '1'], ['payment_date', '2026-10-08'], ...extra]);
+
+    let r = await pay([[`apply[${billId}]`, String(Number(billBal) + 1000)]]);
+    check('AP overpayment rejected', /unpaid balance/.test(r.alerts) && sql(`SELECT amount_paid FROM ap_bills WHERE id = ${billId}`) === paidBefore, r.alerts);
+    r = await pay([[`apply[${otherBill}]`, '1']]);
+    check('AP payment on another vendor\'s bill rejected', /does not belong/.test(r.alerts), r.alerts);
+    r = await pay([[`apply[${billId}]`, '100'], ['withheld_amount', '-50']]);
+    check('negative withheld rejected', /Withheld amount must be/.test(r.alerts), r.alerts);
+    r = await pay([[`apply[${billId}]`, '100'], ['withheld_amount', '10']]);
+    check('withheld without tax type rejected', /withholding tax type/.test(r.alerts), r.alerts);
+    r = await pay([[`apply[${billId}]`, '1,000'], ['withheld_amount', '20'], ['withhold_tax_type_id', '2']]);
+    const lastJe = sql('SELECT ROUND(SUM(debit)-SUM(credit),2), COUNT(*) FROM journal_lines WHERE journal_entry_id = (SELECT MAX(id) FROM journal_entries)');
+    check('valid AP payment with WHT posts balanced 3-line entry', r.url.includes('vendor-view') && lastJe === '0.00\t3' && Number(sql(`SELECT amount_paid FROM ap_bills WHERE id = ${billId}`)) === Number(paidBefore) + 1000, `${r.url} ${lastJe} ${r.alerts}`);
+
+    r = await post('/modules/gl/journal-entry-form.php', [['entry_date', '2026-10-08'], ['account_id[]', '1'], ['debit[]', '200'], ['credit[]', '0'], ['account_id[]', '14'], ['debit[]', '-100'], ['credit[]', '0'], ['account_id[]', '14'], ['debit[]', '0'], ['credit[]', '100']]);
+    check('JE negative debit rejected', /zero or more/.test(r.alerts), r.alerts);
+    r = await post('/modules/gl/journal-entry-form.php', [['entry_date', '2026-10-08'], ['account_id[]', '1'], ['debit[]', '100'], ['credit[]', '100'], ['account_id[]', '14'], ['debit[]', '50'], ['credit[]', '0'], ['account_id[]', '14'], ['debit[]', '0'], ['credit[]', '50']]);
+    check('JE line with debit and credit rejected', /not both/.test(r.alerts), r.alerts);
+
+    const [draftId, draftNo] = sql("SELECT id, bill_no FROM ap_bills WHERE status = 'Draft' ORDER BY id DESC LIMIT 1").split('\t');
+    await post(`/modules/ap/bill-view.php?id=${draftId}`, [['action', 'approve']]);
+    await post(`/modules/ap/bill-view.php?id=${draftId}`, [['action', 'approve']]);
+    const jeCount = sql(`SELECT COUNT(*) FROM journal_entries WHERE reference = '${draftNo}'`);
+    check('bill approved twice posts once', jeCount === '1' && sql(`SELECT status FROM ap_bills WHERE id = ${draftId}`) === 'Open', `entries=${jeCount}`);
+
+    r = await post('/modules/cash/account-form.php', [['account_name', 'E2E Petty'], ['account_type', 'Petty Cash'], ['gl_account_id', '1'], ['opening_balance', '-5'], ['opening_offset_account_id', '14'], ['status', 'Active']]);
+    check('negative opening balance rejected', /zero or more/.test(r.alerts), r.alerts);
+    r = await post('/modules/cash/account-form.php', [['account_name', 'E2E Petty'], ['account_type', 'Petty Cash'], ['gl_account_id', '1'], ['opening_balance', '1,000'], ['opening_offset_account_id', '14'], ['status', 'Active']]);
+    const newCash = sql("SELECT id FROM cash_accounts WHERE account_name = 'E2E Petty' ORDER BY id DESC LIMIT 1");
+    const openJe = sql(`SELECT ROUND(SUM(jl.debit),2) FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id = je.id WHERE je.reference = 'OPEN-${newCash}'`);
+    check('opening balance posted to GL', openJe === '1000.00', `${r.url} ${openJe} ${r.alerts}`);
+
+    r = await post('/modules/tax/tax-type-form.php', [['code', 'E2E'], ['name', 'E2E Tax'], ['rate_percent', '150']]);
+    check('tax rate over 100 rejected', /0 to 100/.test(r.alerts), r.alerts);
+
+    // Happy paths of every handler that now runs in one transaction.
+    const [invId, custId] = sql("SELECT id, customer_id FROM ar_invoices WHERE status IN ('Open','PartiallyPaid') ORDER BY id LIMIT 1").split('\t');
+    const recvBefore = Number(sql(`SELECT amount_received FROM ar_invoices WHERE id = ${invId}`));
+    r = await post('/modules/ar/receipt-form.php', [['customer_id', custId], ['cash_account_id', '2'], ['receipt_date', '2026-10-08'], [`apply[${invId}]`, '500']]);
+    check('AR receipt recorded', r.url.includes('customer-view') && Number(sql(`SELECT amount_received FROM ar_invoices WHERE id = ${invId}`)) === recvBefore + 500, r.url + ' ' + r.alerts);
+
+    r = await post('/modules/cash/transfer-form.php', [['from_cash_account_id', '2'], ['to_cash_account_id', '3'], ['amount', '1,234.50'], ['transfer_date', '2026-10-08']]);
+    check('cash transfer recorded', r.url.includes('transfers.php'), r.url + ' ' + r.alerts);
+    r = await post('/modules/cash/transaction-form.php', [['cash_account_id', '1'], ['offset_account_id', '30'], ['type', 'Withdrawal'], ['amount', '75'], ['transaction_date', '2026-10-08']]);
+    check('cash transaction recorded', r.url.includes('account-register'), r.url + ' ' + r.alerts);
+
+    const pendingWht = sql("SELECT COUNT(*) FROM tax_transactions WHERE direction = 'Withholding' AND status = 'Pending'");
+    r = await post('/modules/tax/remittance-form.php', [['tax_type_id', '2'], ['direction', 'Withholding'], ['period_start', '2026-01-01'], ['period_end', '2026-12-31'], ['cash_account_id', '2']]);
+    check('withholding remittance recorded', pendingWht !== '0' && r.url.includes('remittances.php') && sql("SELECT COUNT(*) FROM tax_transactions WHERE direction = 'Withholding' AND status = 'Pending'") === '0', `${pendingWht} pending; ${r.url} ${r.alerts}`);
+
+    const [dvBill, dvVendor] = sql("SELECT id, vendor_id FROM ap_bills WHERE status IN ('Open','PartiallyPaid') ORDER BY id DESC LIMIT 1").split('\t');
+    const dvPaidBefore = Number(sql(`SELECT amount_paid FROM ap_bills WHERE id = ${dvBill}`));
+    r = await post('/modules/disbursement/voucher-form.php', [['payee_type', 'Vendor'], ['vendor_id', dvVendor], ['payee_name', 'E2E Vendor'], ['dv_date', '2026-10-08'], ['cash_account_id', '2'], [`apply_bill[${dvBill}]`, '300'], ['adhoc_description[]', 'E2E fee'], ['adhoc_account_id[]', '30'], ['adhoc_amount[]', '45.50']]);
+    const dvId = (r.url.match(/id=(\d+)/) || [])[1];
+    await post(`/modules/disbursement/voucher-view.php?id=${dvId}`, [['action', 'approve']]);
+    await post(`/modules/disbursement/voucher-view.php?id=${dvId}`, [['action', 'pay']]);
+    await post(`/modules/disbursement/voucher-view.php?id=${dvId}`, [['action', 'pay']]);
+    check('voucher paid once, bill updated', sql(`SELECT status FROM disbursement_vouchers WHERE id = ${dvId}`) === 'Paid'
+      && Number(sql(`SELECT amount_paid FROM ap_bills WHERE id = ${dvBill}`)) === dvPaidBefore + 300
+      && sql(`SELECT COUNT(*) FROM journal_entries WHERE source_module = 'disbursement' AND source_id = ${dvId}`) === '1', `dv=${dvId} ${r.alerts}`);
+
+    const crRecvBefore = Number(sql(`SELECT amount_received FROM ar_invoices WHERE id = ${invId}`));
+    r = await post('/modules/collection/receipt-form.php', [['payer_type', 'Customer'], ['customer_id', custId], ['payer_name', 'E2E Customer'], ['cr_date', '2026-10-08'], ['cash_account_id', '2'], [`apply_invoice[${invId}]`, '250']]);
+    const crId = (r.url.match(/id=(\d+)/) || [])[1];
+    await post(`/modules/collection/receipt-view.php?id=${crId}`, [['action', 'approve']]);
+    await post(`/modules/collection/receipt-view.php?id=${crId}`, [['action', 'deposit']]);
+    check('collection deposited, invoice updated', sql(`SELECT status FROM collection_receipts WHERE id = ${crId}`) === 'Deposited'
+      && Number(sql(`SELECT amount_received FROM ar_invoices WHERE id = ${invId}`)) === crRecvBefore + 250, `cr=${crId} ${r.alerts}`);
+    r = await post('/modules/collection/receipt-form.php', [['payer_type', 'Customer'], ['customer_id', custId], ['payer_name', 'E2E Customer'], ['cr_date', '2026-10-08'], ['cash_account_id', '2'], [`apply_invoice[${invId}]`, '99999999']]);
+    check('collection over invoice balance rejected', /unpaid balance/.test(r.alerts), r.alerts);
+
+    const tb = sql("SELECT ROUND(SUM(jl.debit)-SUM(jl.credit),2) FROM journal_lines jl JOIN journal_entries je ON je.id = jl.journal_entry_id WHERE je.status IN ('Posted','Void')");
+    check('whole ledger still balances', tb === '0.00', tb);
   } catch (e) {
     check('script error', false, e.message.split('\n')[0]);
     await page.screenshot({ path: SHOTS + 'error.png', fullPage: true });
