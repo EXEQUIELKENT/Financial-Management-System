@@ -17,9 +17,9 @@ function format_currency($amount): string {
     $value = is_numeric($amount) ? (float)$amount : 0.0;
     if (!is_finite($value)) $value = 0.0;
     // Explicit separators: always "." decimal and "," thousands, 2 decimals -> ₱540,580.80
-    // (independent of the server locale). CURRENCY_SYMBOL is a \u{20B1} escape in
+    // (independent of the server locale). APP_CURRENCY_SYMBOL is a \u{20B1} escape in
     // config.php, so no file encoding can corrupt it.
-    return CURRENCY_SYMBOL . number_format($value, 2, '.', ',');
+    return APP_CURRENCY_SYMBOL . number_format($value, 2, '.', ',');
 }
 
 /**
@@ -30,7 +30,7 @@ function format_currency($amount): string {
 function parse_amount($raw): ?float {
     $s = trim((string)$raw);
     if ($s === '') return 0.0;
-    $s = str_replace([',', ' ', "\u{00A0}", CURRENCY_SYMBOL, 'PHP'], '', $s);
+    $s = str_replace([',', ' ', "\u{00A0}", APP_CURRENCY_SYMBOL, 'PHP'], '', $s);
     if (!preg_match('/^-?\d+(\.\d+)?$|^-?\.\d+$/', $s)) return null;
     return round((float)$s, 2);
 }

@@ -123,7 +123,10 @@ $currencySymbol = trim((string)env_value('CURRENCY_SYMBOL', $pesoSign));
 if (!in_array($currencySymbol, [$pesoSign, '$', "\u{20AC}", 'PHP'], true)) {
     $currencySymbol = $pesoSign;
 }
-define('CURRENCY_SYMBOL', $currencySymbol);
+// Not named CURRENCY_SYMBOL: on Linux PHP already defines that constant (an nl_langinfo
+// item, value 262145), so define() silently failed and every amount on the hosted
+// site rendered as "262145" + number. Windows builds lack it, hiding the bug locally.
+define('APP_CURRENCY_SYMBOL', $currencySymbol);
 
 // Force UTF-8 on every response. If the host/proxy falls back to a Latin-1 charset in
 // the HTTP header, it overrides <meta charset> and the peso sign turns into gibberish.
