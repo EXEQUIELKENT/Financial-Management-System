@@ -35,11 +35,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $lines = [];
     $subtotal = 0; $taxAmount = 0;
+    $lineErrors = [];
+    $acctName = $db->prepare("SELECT account_name FROM coa_accounts WHERE id = ?");
+    $rowNo = 0;
     foreach ($descriptions as $i => $desc) {
-        if (empty($accountIds[$i]) || $desc === '') continue;
-        $qty = (float)($qtys[$i] ?? 1);
-        $price = (float)($prices[$i] ?? 0);
+        $rowNo++;
+        $desc = trim((string)$desc);
+        $qty = parse_amount($qtys[$i] ?? '1');
+        $price = parse_amount($prices[$i] ?? '0');
+        // A completely untouched row is ignored; anything partly filled is validated
+        // instead of being dropped silently (which used to change the saved total).
+        if (empty($accountIds[$i]) && $desc === '' && !$price) continue;
+        if (empty($accountIds[$i])) { $lineErrors[] = "Line {$rowNo}: choose an account."; continue; }
+        if ($qty === null || $qty <= 0) { $lineErrors[] = "Line {$rowNo}: quantity must be greater than zero."; continue; }
+        if ($price === null || $price < 0) { $lineErrors[] = "Line {$rowNo}: unit price must be zero or more."; continue; }
+        if ($desc === '') {
+            // Description is optional; default it to the account name.
+            $acctName->execute([(int)$accountIds[$i]]);
+            $desc = (string)($acctName->fetchColumn() ?: 'Line ' . $rowNo);
+        }
         $amount = round($qty * $price, 2);
+        if ($amount > MAX_AMOUNT) { $lineErrors[] = "Line {$rowNo}: amount is too large."; continue; }
         $taxTypeId = !empty($taxTypeIds[$i]) ? (int)$taxTypeIds[$i] : null;
         $lineTax = 0;
         if ($taxTypeId) {
@@ -52,7 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $subtotal += $amount;
         $taxAmount += $lineTax;
     }
+    $subtotal = round($subtotal, 2);
+    $taxAmount = round($taxAmount, 2);
     $total = round($subtotal + $taxAmount, 2);
+    $errors = array_merge($errors, $lineErrors);
 
     if (!$customerId) $errors[] = 'Please select a customer.';
     if (empty($lines)) $errors[] = 'Add at least one invoice line.';
@@ -135,8 +154,8 @@ include __DIR__ . '/../../includes/header.php';
                         <option value="">—</option>
                         <?php foreach ($accounts as $a): ?><option value="<?= $a['id'] ?>" <?= (int)($l['account_id'] ?? 0) === (int)$a['id'] ? 'selected' : '' ?>><?= e($a['account_code'].' - '.$a['account_name']) ?></option><?php endforeach; ?>
                     </select></td>
-                    <td><input type="number" step="0.01" name="qty[]" class="form-control lineQty" value="<?= e((string)($l['qty'] ?? 1)) ?>" onchange="calcTotals()"></td>
-                    <td><input type="number" step="0.01" name="unit_price[]" class="form-control linePrice" value="<?= e((string)($l['unit_price'] ?? 0)) ?>" onchange="calcTotals()"></td>
+                    <td><input type="number" step="0.01" name="qty[]" min="0" class="form-control lineQty" value="<?= e((string)($l['qty'] ?? 1)) ?>" oninput="calcTotals()"></td>
+                    <td><input type="number" step="0.01" name="unit_price[]" min="0" class="form-control linePrice" value="<?= e((string)($l['unit_price'] ?? 0)) ?>" oninput="calcTotals()"></td>
                     <td><select name="tax_type_id[]" class="lineTax" onchange="calcTotals()">
                         <option value="">None</option>
                         <?php foreach ($taxTypes as $t): ?><option value="<?= $t['id'] ?>" data-rate="<?= $t['rate_percent'] ?>" <?= (int)($l['tax_type_id'] ?? 0) === (int)$t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?> (<?= $t['rate_percent'] ?>%)</option><?php endforeach; ?>
@@ -184,17 +203,17 @@ function calcTotals() {
     rows.forEach(function(row){
         var qty = parseFloat(row.querySelector('.lineQty').value || 0);
         var price = parseFloat(row.querySelector('.linePrice').value || 0);
-        var amount = qty * price;
+        var amount = Math.round(qty * price * 100) / 100;
         var taxSel = row.querySelector('.lineTax');
         var rate = taxSel.selectedOptions[0] ? parseFloat(taxSel.selectedOptions[0].getAttribute('data-rate') || 0) : 0;
-        var lineTax = amount * rate / 100;
-        row.querySelector('.lineAmount').textContent = amount.toFixed(2);
+        var lineTax = Math.round(amount * rate) / 100;
+        row.querySelector('.lineAmount').textContent = formatMoney(amount);
         subtotal += amount;
         tax += lineTax;
     });
-    document.getElementById('subtotalDisp').textContent = subtotal.toFixed(2);
-    document.getElementById('taxDisp').textContent = tax.toFixed(2);
-    document.getElementById('totalDisp').textContent = (subtotal + tax).toFixed(2);
+    document.getElementById('subtotalDisp').textContent = formatMoney(subtotal);
+    document.getElementById('taxDisp').textContent = formatMoney(tax);
+    document.getElementById('totalDisp').textContent = formatMoney(subtotal + tax);
 }
 calcTotals();
 </script>

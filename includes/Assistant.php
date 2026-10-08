@@ -81,28 +81,11 @@ function assistant_answer(string $intent): string {
             return "Vendors with overdue bills: " . $list . ".";
 
         case 'budget_utilization':
-            $today = date('Y-m-d'); $month = (int)date('n');
-            $stmt = $db->prepare("SELECT b.id FROM budgets b JOIN budget_periods bp ON bp.id=b.budget_period_id WHERE b.status='Approved' AND ? BETWEEN bp.start_date AND bp.end_date");
-            $stmt->execute([$today]);
-            $budgetIds = array_column($stmt->fetchAll(), 'id');
-            if (empty($budgetIds)) return "There is no approved budget covering the current period yet.";
-            $totalBudgeted = 0; $totalActual = 0;
-            foreach ($budgetIds as $bid) {
-                $lineStmt = $db->prepare("SELECT bl.id, bl.account_id, a.normal_balance FROM budget_lines bl JOIN coa_accounts a ON a.id=bl.account_id WHERE bl.budget_id=?");
-                $lineStmt->execute([$bid]);
-                foreach ($lineStmt->fetchAll() as $line) {
-                    $bStmt = $db->prepare("SELECT COALESCE(SUM(budgeted_amount),0) FROM budget_line_monthly WHERE budget_line_id=? AND month<=?");
-                    $bStmt->execute([$line['id'], $month]);
-                    $budgeted = (float)$bStmt->fetchColumn();
-                    $aStmt = $db->prepare("SELECT COALESCE(SUM(jl.debit),0) AS td, COALESCE(SUM(jl.credit),0) AS tc FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE jl.account_id=? AND je.status='Posted' AND je.entry_date <= ?");
-                    $aStmt->execute([$line['account_id'], $today]);
-                    $a = $aStmt->fetch();
-                    $actual = $line['normal_balance'] === 'Debit' ? ($a['td'] - $a['tc']) : ($a['tc'] - $a['td']);
-                    $totalBudgeted += $budgeted; $totalActual += $actual;
-                }
-            }
+            $t = budget_ytd_totals();
+            if ($t['budgets'] === 0) return "There is no approved budget covering the current period yet.";
+            $totalBudgeted = $t['budgeted']; $totalActual = $t['actual'];
             $utilization = $totalBudgeted != 0 ? round($totalActual / $totalBudgeted * 100, 1) : 0;
-            return "Year-to-date budget utilization is {$utilization}% (" . format_currency($totalActual) . " actual vs " . format_currency($totalBudgeted) . " budgeted) across active approved budgets.";
+            return "Year-to-date budget utilization is {$utilization}% (" . format_currency($totalActual) . " actual vs " . format_currency($totalBudgeted) . " budgeted on expense accounts) across active approved budgets.";
 
         case 'cash_forecast':
             $forecast = build_forecast('cash_flow', 12, 3);

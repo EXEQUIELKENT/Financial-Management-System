@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/csrf.php';
 require_once __DIR__ . '/../../includes/Audit.php';
+require_once __DIR__ . '/../../includes/Mailer.php';
 require_permission('settings.view');
 
 $db = get_db();
@@ -21,6 +22,32 @@ $thresholdKeys = [
     'budget_critical_pct' => 'Budget Utilization Critical Threshold (%)',
     'upcoming_payable_days' => 'Upcoming Payables Look-ahead (days)',
 ];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_action'] ?? '') === 'mail_test') {
+    // The hosted container has no shell, so this is the only way to see why OTP and
+    // password-reset emails are not arriving.
+    require_permission('settings.create');
+    verify_csrf();
+    $me = $db->prepare('SELECT email, full_name FROM users WHERE id = ?');
+    $me->execute([current_user()['id']]);
+    $me = $me->fetch() ?: ['email' => '', 'full_name' => ''];
+    $to = (string)$me['email'];
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        flash('error', 'Your account has no valid email address. Add one under My Profile first.');
+    } elseif (!mail_is_configured()) {
+        flash('error', 'Mail is not configured: set MAIL_USERNAME and MAIL_PASSWORD in the hosting environment, then redeploy.');
+    } else {
+        $r = send_mail($to, (string)$me['full_name'], APP_SHORT_NAME . ' mail test',
+            mail_template('Mail test', '<p>If you can read this, sign-in codes and password-reset codes will be delivered.</p>'));
+        if ($r['success']) {
+            flash('success', 'Test email sent to ' . $to . '. Check the inbox and spam folder.');
+        } else {
+            flash('error', 'Test email failed: ' . ($r['detail'] ?? $r['message']));
+        }
+    }
+    log_audit('mail_test', 'settings', null, 'Sent SMTP test email');
+    redirect('modules/settings/system-settings.php');
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_permission('settings.create');
@@ -78,4 +105,26 @@ include __DIR__ . '/../../includes/header.php';
     <button type="submit" class="btn btn-primary">Save Settings</button>
 <?php endif; ?>
 </form>
+
+<div class="card">
+    <div class="card-header"><h3>Email (sign-in codes &amp; password reset)</h3></div>
+    <?php if (mail_is_configured()): ?>
+        <p>Mail is configured: <strong><?= e(MAIL_USERNAME) ?></strong> via <?= e(MAIL_HOST . ':' . MAIL_PORT) ?> (<?= e(MAIL_ENCRYPTION) ?>).
+        Two-step sign-in and password reset are active.</p>
+    <?php else: ?>
+        <div class="alert alert-warning">
+            <span class="alert-title">Mail is not configured</span>
+            Sign-in codes (OTP) are being skipped and password-reset emails cannot be sent.
+            Set <code>MAIL_USERNAME</code> and <code>MAIL_PASSWORD</code> (for Gmail, a 16-character App Password)
+            in the hosting environment and redeploy.
+        </div>
+    <?php endif; ?>
+    <?php if (has_permission('settings.create')): ?>
+    <form method="post">
+        <?= csrf_field() ?>
+        <input type="hidden" name="form_action" value="mail_test">
+        <button type="submit" class="btn btn-outline">Send test email to me</button>
+    </form>
+    <?php endif; ?>
+</div>
 <?php include __DIR__ . '/../../includes/footer.php'; ?>
